@@ -75,6 +75,14 @@ dalla `dataInizio` impostata dall'utente e sceglie il piano il cui intervallo la
 | `corpoLibero` | Trazioni, plank | L'eventuale zavorra. Registra `pesoCorporeo + zavorra` |
 | `tempo` | Plank | I secondi al posto delle ripetizioni |
 
+### Esercizio che entra solo da una certa settimana
+
+Non c'è un campo dedicato. Si aggiunge come esercizio normale nella posizione giusta,
+con `"serie": 0` e `"serieDaSettimana": { "<settimana>": <valore> }` (0 serie finché non
+si arriva a quella settimana, poi il valore indicato), spiegando in `note` da quale
+settimana entra e perché. Esempio: Fase 1, venerdì, "stacco da rialzo con bilanciere"
+entra dalla settimana 3 con `"serie": 0, "serieDaSettimana": { "3": 2 }`.
+
 ### `progressione`
 
 ```jsonc

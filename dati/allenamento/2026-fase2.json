@@ -1,0 +1,348 @@
+{
+  "id": "2026-fase2",
+  "nome": "Fase 2 — Scheda principale",
+  "fonte": "ALLENAMENTO.md v3.0",
+  "settimane": 8,
+  "monitorata": true,
+  "regole": [
+    "Serie di avvicinamento: sul primo esercizio di ogni seduta si fanno 2-3 serie leggere in salita prima delle serie di lavoro. Non contano come serie e non si registrano.",
+    "Incrementi quando si sale di carico: +2,5 kg sui fondamentali di gamba, +1,25-2,5 kg sulla parte alta, 1 tacca sulle macchine."
+  ],
+  "progressione": {
+    "tipo": "doppia",
+    "descrizione": "Si resta sullo stesso carico finché si completa il numero alto di ripetizioni in tutte le serie, con tecnica pulita. Raggiunto quello, si aumenta il carico e si riparte dal numero basso."
+  },
+  "sedute": [
+    {
+      "id": "upper-a",
+      "giorno": 1,
+      "nome": "Upper A",
+      "sottotitolo": "Petto, dorso, tricipiti",
+      "riscaldamento": {
+        "minuti": 7,
+        "voci": ["3' rowing o ellittica", "Circonduzioni spalle", "15 band pull apart"]
+      },
+      "scarico": { "minuti": 3, "voci": ["Stretching pettorali e dorsali"] },
+      "esercizi": [
+        {
+          "id": "panca-piana-manubri",
+          "nome": "Panca piana con manubri",
+          "serie": 4,
+          "rip": "6-8",
+          "ripMin": 6,
+          "ripMax": 8,
+          "recuperoSec": 150,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 1.25,
+          "note": "2-3 serie leggere in salita prima delle serie di lavoro (non contano)."
+        },
+        {
+          "id": "croci-panca-piana",
+          "nome": "Croci su panca piana con manubri",
+          "serie": 3,
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 1.25,
+          "note": ""
+        },
+        {
+          "id": "lat-machine-triangolo",
+          "nome": "Lat machine con triangolo",
+          "serie": 4,
+          "rip": "8-10",
+          "ripMin": 8,
+          "ripMax": 10,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 2.5,
+          "note": "Presa stretta neutra. Incremento convenzionale di una tacca sulla macchina."
+        },
+        {
+          "id": "pulley-basso-triangolo",
+          "nome": "Pulley basso con triangolo",
+          "serie": 3,
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 0,
+          "carico": "esterno",
+          "superserie": "4",
+          "incrementoKg": 2.5,
+          "note": "Incremento convenzionale di una tacca sulla macchina."
+        },
+        {
+          "id": "push-down-corda",
+          "nome": "Push down ai cavi con corda",
+          "serie": 3,
+          "rip": "12-15",
+          "ripMin": 12,
+          "ripMax": 15,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": "4",
+          "incrementoKg": 2.5,
+          "note": "4a e 4b in superserie, 90\" tra un giro e l'altro. Incremento convenzionale di una tacca sulla macchina."
+        }
+      ]
+    },
+    {
+      "id": "lower-a",
+      "giorno": 2,
+      "nome": "Lower A + spalle + addome",
+      "sottotitolo": "Quadricipiti, spalle, addome",
+      "riscaldamento": {
+        "minuti": 7,
+        "voci": ["3' cyclette", "10 affondi in appoggio e 10 circonduzioni anca per lato", "2 serie di squat col solo bilanciere"]
+      },
+      "scarico": { "minuti": 3, "voci": ["Stretching quadricipiti e flessori dell'anca"] },
+      "esercizi": [
+        {
+          "id": "squat-bilanciere",
+          "nome": "Squat con bilanciere",
+          "serie": 4,
+          "rip": "6-8",
+          "ripMin": 6,
+          "ripMax": 8,
+          "recuperoSec": 150,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 2.5,
+          "note": "2-3 serie leggere in salita prima delle serie di lavoro (non contano).",
+          "varianteFacile": "Goblet squat, squat al multipower, box squat"
+        },
+        {
+          "id": "pressa-45",
+          "nome": "Pressa 45°",
+          "serie": 3,
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 2.5,
+          "note": "Incremento convenzionale di una tacca sulla macchina."
+        },
+        {
+          "id": "military-press-bilanciere",
+          "nome": "Military press con bilanciere",
+          "serie": 3,
+          "rip": "8-10",
+          "ripMin": 8,
+          "ripMax": 10,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 1.25,
+          "note": "",
+          "varianteFacile": "Military press con manubri, seduto"
+        },
+        {
+          "id": "leg-extension",
+          "nome": "Leg extension",
+          "serie": 3,
+          "rip": "12-15",
+          "ripMin": 12,
+          "ripMax": 15,
+          "recuperoSec": 0,
+          "carico": "esterno",
+          "superserie": "4",
+          "incrementoKg": 2.5,
+          "note": "Incremento convenzionale di una tacca sulla macchina."
+        },
+        {
+          "id": "crunch-cavi",
+          "nome": "Crunch ai cavi in ginocchio",
+          "serie": 3,
+          "rip": "12-15",
+          "ripMin": 12,
+          "ripMax": 15,
+          "recuperoSec": 75,
+          "carico": "esterno",
+          "superserie": "4",
+          "incrementoKg": 2.5,
+          "note": "4a e 4b in superserie, 75\" tra un giro e l'altro. Incremento convenzionale di una tacca."
+        }
+      ]
+    },
+    {
+      "id": "upper-b",
+      "giorno": 4,
+      "nome": "Upper B",
+      "sottotitolo": "Dorso, petto, bicipiti, deltoide posteriore, addome",
+      "riscaldamento": {
+        "minuti": 7,
+        "voci": ["3' rowing", "15 band pull apart", "10 scapular pull up"]
+      },
+      "scarico": { "minuti": 3, "voci": ["Stretching dorsali e bicipiti"] },
+      "esercizi": [
+        {
+          "id": "trazioni",
+          "nome": "Trazioni (o trazioni assistite alla macchina)",
+          "serie": 4,
+          "rip": "6-10",
+          "ripMin": 6,
+          "ripMax": 10,
+          "recuperoSec": 120,
+          "carico": "corpoLibero",
+          "superserie": null,
+          "incrementoKg": 1.25,
+          "note": "2-3 serie leggere in salita prima delle serie di lavoro (non contano). Se si usa la macchina assistita, il carico da registrare è peso corporeo meno l'assistenza.",
+          "varianteFacile": "Trazioni assistite, o lat machine"
+        },
+        {
+          "id": "rematore-manubri",
+          "nome": "Rematore con manubri",
+          "serie": 4,
+          "rip": "8-10",
+          "ripMin": 8,
+          "ripMax": 10,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 1.25,
+          "note": ""
+        },
+        {
+          "id": "panca-inclinata-bilanciere",
+          "nome": "Panca inclinata 45° con bilanciere",
+          "serie": 3,
+          "rip": "8-10",
+          "ripMin": 8,
+          "ripMax": 10,
+          "recuperoSec": 120,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 1.25,
+          "note": "",
+          "varianteFacile": "Panca inclinata con manubri"
+        },
+        {
+          "id": "curl-manubri",
+          "nome": "Curl con manubri in piedi",
+          "serie": 3,
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 0,
+          "carico": "esterno",
+          "superserie": "4",
+          "incrementoKg": 1.25,
+          "note": ""
+        },
+        {
+          "id": "situp-disco-petto",
+          "nome": "Sit up su panca inclinata con disco al petto",
+          "serie": 3,
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 75,
+          "carico": "esterno",
+          "superserie": "4",
+          "incrementoKg": 1.25,
+          "note": "4a e 4b in superserie, 75\" tra un giro e l'altro."
+        }
+      ]
+    },
+    {
+      "id": "lower-b",
+      "giorno": 5,
+      "nome": "Lower B + spalle",
+      "sottotitolo": "Catena posteriore, spalle, polpacci",
+      "riscaldamento": {
+        "minuti": 7,
+        "voci": ["3' cyclette", "10 hip hinge a vuoto col bastone", "1 serie di stacco col solo bilanciere"]
+      },
+      "scarico": { "minuti": 3, "voci": ["Stretching femorali e glutei"] },
+      "esercizi": [
+        {
+          "id": "stacco-terra-bilanciere",
+          "nome": "Stacco da terra con bilanciere",
+          "serie": 3,
+          "rip": "5",
+          "ripMin": 5,
+          "ripMax": 5,
+          "recuperoSec": 180,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 2.5,
+          "note": "2-3 serie leggere in salita prima delle serie di lavoro (non contano).",
+          "varianteFacile": "Stacco con trap bar, o stacco da rialzo"
+        },
+        {
+          "id": "affondi-indietro-manubri",
+          "nome": "Affondi all'indietro con manubri",
+          "serie": 3,
+          "rip": "10 per gamba",
+          "ripMin": 10,
+          "ripMax": 10,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 2.5,
+          "note": "",
+          "varianteFacile": "Affondi sul posto, o step up su panca"
+        },
+        {
+          "id": "leg-curl",
+          "nome": "Leg curl",
+          "serie": 3,
+          "rip": "12",
+          "ripMin": 12,
+          "ripMax": 12,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 2.5,
+          "note": "Incremento convenzionale di una tacca sulla macchina."
+        },
+        {
+          "id": "alzate-laterali",
+          "nome": "Alzate laterali con manubri",
+          "serie": 3,
+          "rip": "12-15",
+          "ripMin": 12,
+          "ripMax": 15,
+          "recuperoSec": 0,
+          "carico": "esterno",
+          "superserie": "4",
+          "incrementoKg": 1.25,
+          "note": ""
+        },
+        {
+          "id": "alzate-posteriori-cavi",
+          "nome": "Alzate posteriori ai cavi (o su panca inclinata)",
+          "serie": 3,
+          "rip": "15",
+          "ripMin": 15,
+          "ripMax": 15,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": "4",
+          "incrementoKg": 2.5,
+          "note": "4a e 4b in superserie, 60\" tra un giro e l'altro. Incremento convenzionale di una tacca ai cavi."
+        },
+        {
+          "id": "calf-in-piedi",
+          "nome": "Calf in piedi",
+          "serie": 3,
+          "rip": "15",
+          "ripMin": 15,
+          "ripMax": 15,
+          "recuperoSec": 45,
+          "carico": "esterno",
+          "superserie": null,
+          "incrementoKg": 2.5,
+          "note": "Incremento convenzionale di una tacca sulla macchina."
+        }
+      ]
+    }
+  ]
+}

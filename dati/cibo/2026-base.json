@@ -1,0 +1,152 @@
+{
+  "id": "2026-base",
+  "nome": "Piano alimentare 1.1",
+  "fonte": "ALIMENTAZIONE.md v1.1",
+  "vincoli": [
+    { "chi": "Giuseppe", "testo": "Niente olive. Olio d'oliva sì, senza limiti." },
+    { "chi": "Corinna", "testo": "Allergie — fuori pesche, albicocche, nettarine, noci, noci pecan. Dentro mandorle, nocciole, pistacchi, semi di zucca e girasole." },
+    { "chi": "Corinna", "testo": "Lattosio — latticini solo senza lattosio, oppure a stagionatura lunga (parmigiano, grana, pecorino stagionato). Fuori le versioni classiche di mozzarella, ricotta e spalmabili." }
+  ],
+  "avvertenze": [
+    "Frutta a guscio: solo buste singole, mai i mix. I mix contengono noci o ne riportano le tracce.",
+    "Muesli, barrette, granola: leggere l'etichetta. Servono confezioni senza noci, oppure fiocchi d'avena semplici.",
+    "Frutta con nocciolo (ciliegie, prugne): da confermare con l'allergologo. Finché non c'è risposta, restano fuori. Non è una decisione che si prende qui."
+  ],
+  "regole": [
+    { "titolo": "Proteine a ogni pasto", "testo": "Colazione compresa." },
+    { "titolo": "Regola del piatto", "testo": "Metà verdura, un quarto proteine, un quarto carboidrati. Grassi: 1-2 cucchiai di olio d'oliva a crudo." },
+    { "titolo": "Porzioni a mano", "testo": "Stessa lista per entrambi: cambia solo la quantità." }
+  ],
+  "porzioni": [
+    { "cosa": "Proteine", "quanto": "Un palmo", "nota": "Giuseppe: due." },
+    { "cosa": "Carboidrati", "quanto": "Una mano a coppa", "nota": "Da cotti." },
+    { "cosa": "Verdura", "quanto": "Due pugni", "nota": "" },
+    { "cosa": "Grassi", "quanto": "Un pollice", "nota": "Olio, formaggio stagionato, semi, frutta a guscio." }
+  ],
+  "settimana": [
+    {
+      "giorno": 1,
+      "pranzo": {
+        "nome": "Pollo e ceci",
+        "testo": "Pollo a cubetti + ceci, pomodorini, rucola, olio e limone.",
+        "ingredienti": ["Pollo", "Ceci", "Pomodorini", "Rucola"],
+        "nota": "Pane integrale a parte.",
+        "libero": false
+      },
+      "cena": {
+        "nome": "Frittata e patate al forno",
+        "testo": "Frittata con zucchine + patate al forno + insalata.",
+        "ingredienti": ["Uova", "Zucchine", "Patate", "Insalata"],
+        "nota": "",
+        "libero": false
+      }
+    },
+    {
+      "giorno": 2,
+      "pranzo": {
+        "nome": "Farro freddo e tonno",
+        "testo": "Farro (o orzo) freddo con tonno, pomodorini, zucchine grigliate.",
+        "ingredienti": ["Farro", "Orzo", "Tonno", "Pomodorini", "Zucchine"],
+        "nota": "",
+        "libero": false
+      },
+      "cena": {
+        "nome": "Pollo al limone",
+        "testo": "Pollo o fesa di tacchino al limone + broccoli al vapore + pane.",
+        "ingredienti": ["Pollo", "Fesa di tacchino", "Broccoli", "Pane"],
+        "nota": "",
+        "libero": false
+      }
+    },
+    {
+      "giorno": 3,
+      "pranzo": {
+        "nome": "Riso basmati e salmone",
+        "testo": "Riso basmati + salmone (o sgombro) + spinaci saltati.",
+        "ingredienti": ["Riso basmati", "Salmone", "Sgombro", "Spinaci"],
+        "nota": "",
+        "libero": false
+      },
+      "cena": {
+        "nome": "Polpette al sugo",
+        "testo": "Polpette di manzo al sugo, al forno + fagiolini + pane.",
+        "ingredienti": ["Manzo", "Fagiolini", "Pane"],
+        "nota": "",
+        "libero": false
+      }
+    },
+    {
+      "giorno": 4,
+      "pranzo": {
+        "nome": "Pasta e lenticchie",
+        "testo": "Pasta integrale con lenticchie e pomodoro + carote crude.",
+        "ingredienti": ["Pasta integrale", "Lenticchie", "Pomodoro", "Carote"],
+        "nota": "",
+        "libero": false
+      },
+      "cena": {
+        "nome": "Omelette e zucca al forno",
+        "testo": "Omelette con grana + zucca o peperoni al forno + insalata.",
+        "ingredienti": ["Uova", "Grana", "Zucca", "Peperoni", "Insalata"],
+        "nota": "",
+        "libero": false
+      }
+    },
+    {
+      "giorno": 5,
+      "pranzo": {
+        "nome": "Piadina di tacchino",
+        "testo": "Piadina o wrap integrale con tacchino, pomodoro e insalata + yogurt greco senza lattosio.",
+        "ingredienti": ["Piadina integrale", "Tacchino", "Pomodoro", "Insalata", "Yogurt greco senza lattosio"],
+        "nota": "",
+        "libero": false
+      },
+      "cena": {
+        "nome": "Cena libera",
+        "testo": "Libera.",
+        "nota": "",
+        "libero": true
+      }
+    }
+  ],
+  "colazioni": [
+    { "nome": "Yogurt e avena", "testo": "Yogurt greco senza lattosio + fiocchi d'avena + frutta + miele." },
+    { "nome": "Uova e pane tostato", "testo": "Uova strapazzate (2-3) + pane integrale tostato + pomodoro." },
+    { "nome": "Porridge al cacao", "testo": "Porridge: avena in latte senza lattosio o bevanda di soia + banana + cacao amaro." },
+    { "nome": "Pane e ricotta", "testo": "Pane integrale + ricotta senza lattosio + bresaola o crudo." },
+    { "nome": "Skyr e frutti di bosco", "testo": "Skyr senza lattosio + frutti di bosco + avena." },
+    { "nome": "Pancake proteici", "testo": "Pancake: 1 banana + 2 uova + 3 cucchiai di avena." }
+  ],
+  "spuntini": [
+    "Yogurt greco senza lattosio + muesli.",
+    "Scaglie di grana + un frutto.",
+    "Bresaola o tacchino arrotolato + gallette integrali.",
+    "Una manciata di mandorle, nocciole o pistacchi (buste singole).",
+    "Semi di zucca o girasole.",
+    "Uovo sodo + carote o finocchi.",
+    "Ricotta senza lattosio + miele e cannella.",
+    "Frullato: banana + bevanda di soia + cacao amaro."
+  ],
+  "domenica": {
+    "minuti": 45,
+    "voci": [
+      "Lessare una pentola di farro o riso (due pranzi).",
+      "Infornare una teglia di verdure miste.",
+      "Cuocere 2 petti di pollo interi.",
+      "Lessare 4-6 uova.",
+      "Controllare le scorte in dispensa."
+    ]
+  },
+  "integratori": [
+    { "cosa": "Creatina monoidrato", "verdetto": "Sì, per primo", "dose": "3-5 g al giorno, sempre. Vale anche per Corinna.", "ordine": 1 },
+    { "cosa": "Omega 3", "verdetto": "Sì", "dose": "1-2 g al giorno di EPA+DHA (il valore da leggere in etichetta). Il piano ha poco pesce grasso e le noci sono escluse.", "ordine": 2 },
+    { "cosa": "Vitamina D", "verdetto": "Solo dopo il medico", "dose": "1000-2000 UI da ottobre a marzo, ma serve prima un valore del sangue.", "ordine": 3 },
+    { "cosa": "Proteine in polvere", "verdetto": "Si parte senza", "dose": "Solo se dopo 3-4 settimane colazione o spuntino restano scoperti. In quel caso whey isolate.", "ordine": 4 },
+    { "cosa": "Multivitaminico", "verdetto": "Bassa priorità", "dose": "Non nei primi acquisti.", "ordine": 5 }
+  ],
+  "bevande": [
+    "Acqua: ~2 litri al giorno, più una bottiglia in palestra.",
+    "Caffè: libero. Bibite zuccherate: fuori dai giorni pianificati.",
+    "Alcol: libero nei giorni liberi. È la prima cosa da guardare se un risultato non arriva."
+  ]
+}

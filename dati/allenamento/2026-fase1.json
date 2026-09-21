@@ -1,0 +1,340 @@
+{
+  "id": "2026-fase1",
+  "nome": "Fase 1 — Avvicinamento",
+  "fonte": "ALLENAMENTO.md v3.0",
+  "settimane": 4,
+  "monitorata": false,
+  "regole": [
+    "Ci si ferma 4 ripetizioni prima del cedimento nelle settimane 1-2, 3 nelle settimane 3-4.",
+    "Carichi bassi. Se una serie è dura, il carico è sbagliato.",
+    "Nessuna registrazione, nessuna percentuale. Si annota solo il carico usato, su carta o note del telefono, per avere il punto di partenza della Fase 2.",
+    "Recuperi: 90\" sui primi due esercizi, 60\" sugli altri."
+  ],
+  "progressione": null,
+  "sedute": [
+    {
+      "id": "upper-a",
+      "giorno": 1,
+      "nome": "Upper A",
+      "sottotitolo": "Petto, dorso, tricipiti",
+      "riscaldamento": {
+        "minuti": 7,
+        "voci": ["3' rowing o ellittica", "Circonduzioni spalle", "15 band pull apart"]
+      },
+      "esercizi": [
+        {
+          "id": "panca-piana-manubri",
+          "nome": "Panca piana con manubri",
+          "serie": 2,
+          "serieDaSettimana": { "3": 3 },
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "lat-machine-triangolo",
+          "nome": "Lat machine con triangolo",
+          "serie": 2,
+          "serieDaSettimana": { "3": 3 },
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "croci-panca-piana",
+          "nome": "Croci su panca piana con manubri",
+          "serie": 2,
+          "rip": "12-15",
+          "ripMin": 12,
+          "ripMax": 15,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "pulley-basso-triangolo",
+          "nome": "Pulley basso con triangolo",
+          "serie": 2,
+          "serieDaSettimana": { "3": 3 },
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "push-down-corda",
+          "nome": "Push down ai cavi con corda",
+          "serie": 2,
+          "rip": "12-15",
+          "ripMin": 12,
+          "ripMax": 15,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "lower-a",
+      "giorno": 2,
+      "nome": "Lower A",
+      "sottotitolo": "Quadricipiti, spalle, addome",
+      "riscaldamento": {
+        "minuti": 7,
+        "voci": ["3' cyclette", "10 affondi in appoggio e 10 circonduzioni anca per lato", "10 hip hinge a vuoto col bastone"]
+      },
+      "esercizi": [
+        {
+          "id": "goblet-squat-manubrio",
+          "nome": "Goblet squat con manubrio",
+          "serie": 3,
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "note": "Dalla settimana 3, chi se la sente sostituisce il goblet squat con squat al multipower o squat con bilanciere scarico, stesse ripetizioni."
+        },
+        {
+          "id": "stacco-rumeno-manubri",
+          "nome": "Stacco rumeno con manubri",
+          "serie": 2,
+          "serieDaSettimana": { "3": 3 },
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "leg-extension",
+          "nome": "Leg extension",
+          "serie": 2,
+          "rip": "12-15",
+          "ripMin": 12,
+          "ripMax": 15,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "military-press-manubri",
+          "nome": "Military press con manubri, seduto",
+          "serie": 2,
+          "serieDaSettimana": { "3": 3 },
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "crunch-cavi",
+          "nome": "Crunch ai cavi in ginocchio",
+          "serie": 2,
+          "rip": "12-15",
+          "ripMin": 12,
+          "ripMax": 15,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "upper-b",
+      "giorno": 4,
+      "nome": "Upper B",
+      "sottotitolo": "Dorso, petto, bicipiti, deltoide posteriore, addome",
+      "riscaldamento": {
+        "minuti": 7,
+        "voci": ["3' rowing", "15 band pull apart", "10 scapular pull up"]
+      },
+      "esercizi": [
+        {
+          "id": "trazioni-assistite",
+          "nome": "Trazioni assistite alla macchina",
+          "serie": 2,
+          "serieDaSettimana": { "3": 3 },
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 90,
+          "carico": "assistito",
+          "superserie": null,
+          "note": "In alternativa: lat machine presa larga."
+        },
+        {
+          "id": "rematore-manubri",
+          "nome": "Rematore con manubri",
+          "serie": 2,
+          "serieDaSettimana": { "3": 3 },
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "panca-inclinata-manubri",
+          "nome": "Panca inclinata 45° con manubri",
+          "serie": 2,
+          "serieDaSettimana": { "3": 3 },
+          "rip": "10-12",
+          "ripMin": 10,
+          "ripMax": 12,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "curl-manubri",
+          "nome": "Curl con manubri",
+          "serie": 2,
+          "rip": "12",
+          "ripMin": 12,
+          "ripMax": 12,
+          "recuperoSec": 0,
+          "carico": "esterno",
+          "superserie": "4",
+          "note": ""
+        },
+        {
+          "id": "face-pull-cavi",
+          "nome": "Face pull ai cavi",
+          "serie": 2,
+          "rip": "15",
+          "ripMin": 15,
+          "ripMax": 15,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": "4",
+          "note": "4a e 4b in superserie, 60\" tra un giro e l'altro."
+        },
+        {
+          "id": "plank",
+          "nome": "Plank",
+          "serie": 2,
+          "rip": "30-40\"",
+          "ripMin": 30,
+          "ripMax": 40,
+          "recuperoSec": 60,
+          "carico": "tempo",
+          "superserie": null,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "lower-b",
+      "giorno": 5,
+      "nome": "Lower B",
+      "sottotitolo": "Catena posteriore, spalle, polpacci",
+      "riscaldamento": {
+        "minuti": 7,
+        "voci": ["3' cyclette", "10 hip hinge a vuoto col bastone", "Mobilità anca"]
+      },
+      "esercizi": [
+        {
+          "id": "stacco-rialzo-bilanciere",
+          "nome": "Stacco da rialzo con bilanciere",
+          "serie": 0,
+          "serieDaSettimana": { "3": 2 },
+          "rip": "8",
+          "ripMin": 8,
+          "ripMax": 8,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": null,
+          "note": "Entra dalla settimana 3, prima dell'hip thrust. Carico leggero: serve solo a imparare il movimento in vista della Fase 2."
+        },
+        {
+          "id": "hip-thrust-bilanciere",
+          "nome": "Hip thrust con bilanciere",
+          "serie": 3,
+          "rip": "12",
+          "ripMin": 12,
+          "ripMax": 12,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "affondi-indietro-manubri",
+          "nome": "Affondi all'indietro con manubri",
+          "serie": 2,
+          "serieDaSettimana": { "3": 3 },
+          "rip": "10 per gamba",
+          "ripMin": 10,
+          "ripMax": 10,
+          "recuperoSec": 90,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "leg-curl",
+          "nome": "Leg curl",
+          "serie": 2,
+          "serieDaSettimana": { "3": 3 },
+          "rip": "12",
+          "ripMin": 12,
+          "ripMax": 12,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "alzate-laterali",
+          "nome": "Alzate laterali con manubri",
+          "serie": 2,
+          "serieDaSettimana": { "3": 3 },
+          "rip": "12-15",
+          "ripMin": 12,
+          "ripMax": 15,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        },
+        {
+          "id": "calf-in-piedi",
+          "nome": "Calf in piedi",
+          "serie": 2,
+          "rip": "15",
+          "ripMin": 15,
+          "ripMax": 15,
+          "recuperoSec": 60,
+          "carico": "esterno",
+          "superserie": null,
+          "note": ""
+        }
+      ]
+    }
+  ]
+}

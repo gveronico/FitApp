@@ -1,0 +1,61 @@
+{
+  "id": "2026-spesa",
+  "liste": [
+    {
+      "id": "A",
+      "nome": "Lista A — spesa comune",
+      "sottotitolo": "Da chiedere ai genitori",
+      "reparti": [
+        {
+          "nome": "Verdura",
+          "nota": "Deve esserci tutta la settimana",
+          "voci": ["Zucchine", "Broccoli", "Spinaci", "Fagiolini", "Carote", "Peperoni", "Zucca", "Patate", "Pomodorini", "Insalata mista e rucola", "Finocchi", "Cipolla, aglio, limoni"]
+        },
+        {
+          "nome": "Frutta",
+          "voci": ["Banane", "Mele o pere", "Arance o mandarini"]
+        },
+        {
+          "nome": "Proteine fresche",
+          "voci": ["Uova (almeno 2 confezioni)", "Petti di pollo (2-3)", "Fesa di tacchino a fette", "Macinato di manzo (per le polpette)"]
+        },
+        {
+          "nome": "Dispensa",
+          "voci": ["Riso", "Passata di pomodoro", "Ceci in barattolo", "Lenticchie in barattolo", "Tonno in scatola", "Olio extravergine d'oliva", "Parmigiano o grana", "Miele", "Sale, spezie, aceto"]
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "nome": "Lista B — spesa nostra",
+      "sottotitolo": "Io e Corinna",
+      "reparti": [
+        {
+          "nome": "Senza lattosio",
+          "voci": ["Yogurt greco senza lattosio (il formato grande, si usa tutti i giorni)", "Skyr senza lattosio", "Ricotta senza lattosio", "Latte senza lattosio o bevanda di soia"]
+        },
+        {
+          "nome": "Cereali e pane",
+          "voci": ["Fiocchi d'avena", "Muesli senza noci (leggere l'etichetta)", "Pasta integrale", "Farro o orzo perlato", "Riso basmati", "Pane integrale", "Piadine o wrap integrali", "Gallette integrali"]
+        },
+        {
+          "nome": "Proteine specifiche",
+          "voci": ["Salmone o sgombro (freschi o in scatola)", "Bresaola", "Prosciutto crudo"]
+        },
+        {
+          "nome": "Frutta a guscio e semi",
+          "nota": "Solo buste singole, mai i mix",
+          "voci": ["Mandorle", "Nocciole", "Pistacchi", "Semi di zucca", "Semi di girasole"]
+        },
+        {
+          "nome": "Varie",
+          "voci": ["Cacao amaro in polvere", "Frutti di bosco (freschi o surgelati)"]
+        },
+        {
+          "nome": "Integratori",
+          "voci": ["Creatina monoidrato", "Omega 3 (controllare EPA+DHA in etichetta)"]
+        }
+      ]
+    }
+  ]
+}
