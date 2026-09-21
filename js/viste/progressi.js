@@ -1,7 +1,9 @@
 /* progressi.js — quanto si è saliti di carico, a ripetizioni fisse.
    Due sotto-schede: Carichi (qui) e Foto (in foto.js, montata a parte). */
 
-import { h, metti, peso, percento, daIso, mesiBrevi } from '../ui.js';
+import {
+  h, metti, peso, percento, daIso, mesiBrevi, conferma,
+} from '../ui.js';
 import * as piani from '../piani.js';
 import * as store from '../store.js';
 
@@ -20,9 +22,13 @@ export async function monta(contenitore, parametri) {
     ]),
   ]);
 
+  // Sotto-schede e corpo vivono in .schermata, come ogni altra vista (16px
+  // di margine): prima toccavano i bordi perché erano appesi a #app.
+  const schermata = h('div.schermata');
   const schede = h('div.schede', { role: 'tablist' });
   const corpo = h('div');
-  contenitore.append(testata, schede, corpo);
+  schermata.append(schede, corpo);
+  contenitore.append(testata, schermata);
 
   const btnCarichi = h('button', {
     role: 'tab', 'aria-selected': String(vistaIniziale === 'carichi'), onclick: () => cambia('carichi'),
@@ -32,13 +38,39 @@ export async function monta(contenitore, parametri) {
   }, 'Foto');
   schede.append(btnCarichi, btnFoto);
 
+  let attivo = null;
+  let smontaFoto = null;
+
   async function cambia(nome) {
+    if (nome === attivo) return;
+    if (attivo === 'foto' && typeof smontaFoto === 'function') smontaFoto();
+    smontaFoto = null;
+    attivo = nome;
+
     btnCarichi.setAttribute('aria-selected', String(nome === 'carichi'));
     btnFoto.setAttribute('aria-selected', String(nome === 'foto'));
     corpo.replaceChildren();
+
+    // La rotta #/progressi/foto esiste già: si tiene l'hash allineato alla
+    // sotto-scheda mostrata (pushState, non tocca il router) così il tasto
+    // Indietro e un ricaricamento restano dentro Progressi.
+    const percorso = nome === 'foto' ? '#/progressi/foto' : '#/progressi';
+    if (location.hash !== percorso) history.pushState(null, '', percorso);
+
     if (nome === 'carichi') await corpoCarichi(corpo);
-    else await montaFoto(corpo);
+    else smontaFoto = await montaFoto(corpo);
   }
+
+  function alPopstate() {
+    const parti = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+    if (parti[0] !== 'progressi') return; // si è navigato altrove, non tocca a noi
+    cambia(parti[1] === 'foto' ? 'foto' : 'carichi');
+  }
+  window.addEventListener('popstate', alPopstate);
+  osservaSmontaggio(contenitore, () => {
+    window.removeEventListener('popstate', alPopstate);
+    if (attivo === 'foto' && typeof smontaFoto === 'function') smontaFoto();
+  });
 
   await cambia(vistaIniziale);
 }
@@ -46,21 +78,35 @@ export async function monta(contenitore, parametri) {
 async function montaFoto(dove) {
   try {
     const m = await import('./foto.js');
-    await m.corpo(dove);
+    // foto.js sta imparando a restituire una funzione di smontaggio (per
+    // liberare gli ObjectURL delle foto): finché non ce l'ha, torna undefined.
+    return await m.corpo(dove);
   } catch (e) {
     console.error(e);
-    metti(dove, h('div.schermata', [
-      h('div.vuoto', [h('p.nota', 'Le foto non sono disponibili.')]),
-    ]));
+    metti(dove, h('div.vuoto', [h('p.nota', 'Le foto non sono disponibili.')]));
+    return null;
   }
 }
 
-/** Disegna solo il contenuto "Carichi", senza testata. Riusabile da fuori. */
+/** Osserva la disconnessione dal DOM di un contenitore, per liberare
+    ascoltatori quando si esce da Progressi (stesso schema di foto.js). */
+function osservaSmontaggio(contenitore, alSmontaggio) {
+  const oss = new MutationObserver(() => {
+    if (!contenitore.isConnected) {
+      oss.disconnect();
+      alSmontaggio();
+    }
+  });
+  oss.observe(document.body, { childList: true, subtree: true });
+  return oss;
+}
+
+/** Disegna solo il contenuto "Carichi", senza testata. Il contenitore deve
+    già stare dentro una .schermata (lo fa monta()). Riusabile da fuori. */
 export async function corpoCarichi(contenitore) {
   iniettaStile();
-  contenitore.classList.add('schermata');
 
-  const [serieGrezze, elenco, st] = await Promise.all([
+  let [serieGrezze, elenco, st] = await Promise.all([
     store.tutteLeSerie(), piani.elencoPiani(), piani.stato(),
   ]);
 
@@ -70,17 +116,38 @@ export async function corpoCarichi(contenitore) {
   }
 
   const { nomiEsercizi, nomiSedute } = await costruisciMappe();
-  const calcolo = calcolaIncrementi(serieGrezze);
+  let calcolo = calcolaIncrementi(serieGrezze);
 
   let selezionato = null;
 
+  async function ricarica() {
+    serieGrezze = await store.tutteLeSerie();
+    calcolo = calcolaIncrementi(serieGrezze);
+  }
+
+  /** Cancellazione definitiva di una serie sbagliata: l'unico modo, prima
+      di questa correzione, era "Cancella tutto" in Altro. */
+  async function eliminaSerieRiga(s) {
+    const testo = `Eliminare la serie del ${formattaDataBreve(s.data)} `
+      + `(${peso(s.carico)} × ${s.ripetizioni ?? '–'})? Non si può recuperare.`;
+    if (!conferma(testo)) return;
+    await store.eliminaSerie(s.id);
+    await ricarica();
+    disegna();
+  }
+
   const disegna = () => {
+    if (!serieGrezze.length) {
+      metti(contenitore, vistaVuota());
+      return;
+    }
     if (selezionato) {
       const e = calcolo.esercizi.find((x) => x.esercizioId === selezionato);
+      if (!e) { selezionato = null; disegna(); return; }
       metti(contenitore, vistaDettaglio(e, serieGrezze, nomiEsercizi, () => {
         selezionato = null;
         disegna();
-      }));
+      }, eliminaSerieRiga));
     } else {
       metti(contenitore, vistaElenco(calcolo, nomiEsercizi, nomiSedute, elenco, st, (id) => {
         selezionato = id;
@@ -283,7 +350,7 @@ function bloccoPerSeduta(esercizi, nomiSedute) {
 
 /* ---------- vista: dettaglio esercizio ---------------------------- */
 
-function vistaDettaglio(e, serieGrezze, nomiEsercizi, onIndietro) {
+function vistaDettaglio(e, serieGrezze, nomiEsercizi, onIndietro, onElimina) {
   const nome = nomiEsercizi.get(e.esercizioId) || e.esercizioId;
 
   const righeIncremento = e.inAttesa
@@ -316,7 +383,7 @@ function vistaDettaglio(e, serieGrezze, nomiEsercizi, onIndietro) {
     h('h2.titolo-2', { style: 'margin-top:12px' }, nome),
     blocco,
     graficoSvg(e.punti),
-    storicoEsercizio(e.esercizioId, serieGrezze),
+    storicoEsercizio(e.esercizioId, serieGrezze, onElimina),
   ];
 }
 
@@ -364,7 +431,7 @@ function graficoSvg(punti) {
   return h('div', { html: svg });
 }
 
-function storicoEsercizio(esercizioId, serieGrezze) {
+function storicoEsercizio(esercizioId, serieGrezze, onElimina) {
   const serieEs = serieGrezze.filter((s) => s.esercizioId === esercizioId);
   const perData = new Map();
   serieEs.forEach((s) => {
@@ -380,8 +447,14 @@ function storicoEsercizio(esercizioId, serieGrezze) {
       return h('div.pila-s', { style: 'margin-bottom:12px' }, [
         h('p.nota', formattaDataBreve(data)),
         h('ul.lista', voci.map((s) => h('li', { class: s.monitorata ? null : 'spento' }, [
-          h('span.cresci', `${peso(s.carico)} × ${s.ripetizioni ?? '–'}`),
+          h('span.cresci', [
+            h('div', `${peso(s.carico)} × ${s.ripetizioni ?? '–'}`),
+            s.note ? h('p.nota', s.note) : null,
+          ]),
           !s.monitorata ? h('span.nota', 'avvicinamento') : null,
+          h('button.btn.btn-s.btn-rosso', {
+            onclick: () => onElimina(s), 'aria-label': 'Elimina questa serie',
+          }, 'Elimina'),
         ]))),
       ]);
     }),

@@ -40,13 +40,30 @@ export async function corpo(contenitore) {
   document.body.append(input);
   let bersaglio = null; // { mese, posa } in attesa dello scatto scelto
 
-  osservaSmontaggio(contenitore, () => { revoca(); input.remove(); });
+  /* Smontaggio idempotente: revoca gli object URL, toglie l'input dal body,
+     disconnette l'observer. Chi usa corpo() come sotto-scheda (progressi.js)
+     riceve la funzione dal valore di ritorno e la chiama quando si passa a
+     un'altra sotto-scheda. osservaSmontaggio resta comunque attivo come rete
+     di sicurezza per l'uso diretto da monta(), dove il contenitore esce dal
+     DOM senza che nessuno chiami esplicitamente la funzione di smontaggio. */
+  let smontato = false;
+  function smontaggio() {
+    if (smontato) return;
+    smontato = true;
+    osservatore.disconnect();
+    revoca();
+    input.remove();
+  }
+  const osservatore = osservaSmontaggio(contenitore, smontaggio);
 
   let tutte = [];
   let perMese = {};
 
   async function ricarica() {
-    tutte = await store.tutteLeFoto();
+    // record con blob guasto (es. canvas.toBlob che ha restituito null in
+    // passato): si saltano qui, una volta sola, così nessun punto che
+    // costruisce un object URL deve più preoccuparsene.
+    tutte = (await store.tutteLeFoto()).filter((f) => f && f.blob instanceof Blob);
     perMese = {};
     tutte.forEach((f) => {
       if (!perMese[f.mese]) perMese[f.mese] = [];
@@ -210,14 +227,25 @@ export async function corpo(contenitore) {
 
     const overlay = h('div.fot-elab', [h('p.titolo-2', 'Un momento…')]);
     contenitore.append(overlay);
+    let erroreMessaggio = null;
     try {
       const blob = await ridimensiona(file);
       await store.salvaFoto({ id: store.nuovoId('foto'), mese, posa, blob, creata: Date.now() });
       await ricarica();
+    } catch (e) {
+      erroreMessaggio = String(e?.message || e) || 'Non riesco a salvare questa foto.';
     } finally {
       overlay.remove();
     }
-    vai({ nome: 'mese', mese });
+
+    // navigazione e messaggio d'errore in sequenza (non con vai()), così il
+    // ridisegno finisce prima che la fascia d'errore venga appesa: altrimenti
+    // il metti() del ridisegno la porterebbe via.
+    vista = { nome: 'mese', mese };
+    await ridisegna();
+    if (erroreMessaggio && contenitore.isConnected) {
+      contenitore.append(h('div.fascia.fascia-errore', { style: 'margin-top:10px' }, erroreMessaggio));
+    }
   });
 
   /* ---------- confronto ------------------------------------ */
@@ -285,6 +313,8 @@ export async function corpo(contenitore) {
   }
 
   await ridisegna();
+
+  return smontaggio;
 }
 
 /* ---------- ridimensionamento immagine -------------------- */
@@ -317,7 +347,12 @@ async function ridimensiona(file) {
   if (typeof bitmap.close === 'function') bitmap.close();
   if (urlTemporaneo) URL.revokeObjectURL(urlTemporaneo);
 
-  return new Promise((risolvi) => canvas.toBlob(risolvi, 'image/jpeg', QUALITA_JPEG));
+  return new Promise((risolvi, rifiuta) => {
+    canvas.toBlob((blob) => {
+      if (blob) risolvi(blob);
+      else rifiuta(new Error('Non riesco a leggere questa immagine. Prova con un altro formato.'));
+    }, 'image/jpeg', QUALITA_JPEG);
+  });
 }
 
 function caricaImmagine(url) {
@@ -376,6 +411,7 @@ function osservaSmontaggio(contenitore, alSmontaggio) {
     }
   });
   oss.observe(document.body, { childList: true, subtree: true });
+  return oss;
 }
 
 /* ---------- stile locale ------------------------------------

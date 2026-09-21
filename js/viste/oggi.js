@@ -31,8 +31,8 @@ export async function monta(app) {
       'Il programma è finito. Serve una scheda nuova.'));
   } else if (st.settimana && st.riferimento && st.settimana >= st.riferimento.settimanaA - 1) {
     const mancano = st.riferimento.settimanaA - st.settimana + 1;
-    schermata.append(h('div.fascia.fascia-avviso',
-      `Ultime ${mancano === 1 ? 'settimana' : mancano + ' settimane'} di ${st.riferimento.nome}.`));
+    const etichetta = mancano === 1 ? 'Ultima settimana' : `Ultime ${mancano} settimane`;
+    schermata.append(h('div.fascia.fascia-avviso', `${etichetta} di ${st.riferimento.nome}.`));
   }
 
   await avvisoBackup(schermata);
@@ -62,8 +62,10 @@ export async function monta(app) {
         h('p.nota', 'Tieni le proteine in almeno un pasto.'),
       ]));
     } else {
-      schermata.append(bloccoPasto('Pranzo', giornoCibo.pranzo));
-      schermata.append(bloccoPasto('Cena', giornoCibo.cena));
+      const vincoli = cibo.vincoli || [];
+      const profilo = st.impostazioni?.profilo || null;
+      schermata.append(bloccoPasto('Pranzo', giornoCibo.pranzo, vincoli, profilo));
+      schermata.append(bloccoPasto('Cena', giornoCibo.cena, vincoli, profilo));
     }
 
     schermata.append(rotazione('Colazione', cibo.colazioni?.map((c) => c.testo || c.nome) || []));
@@ -76,7 +78,9 @@ export async function monta(app) {
 async function bloccoSeduta(st) {
   const settimana = st.settimanaNellaFase;
   const aperta = await store.sessioneAperta();
-  const esercizi = st.seduta.esercizi || [];
+  // Come in scheda.js: un esercizio a 0 serie questa settimana non è ancora
+  // entrato nel programma (serieDaSettimana) — qui, riepilogo, si salta.
+  const esercizi = (st.seduta.esercizi || []).filter((e) => piani.serieDi(e, settimana) > 0);
 
   return h('div.blocco.blocco-pieno', [
     h('div.riga-sp', [
@@ -104,7 +108,7 @@ async function bloccoSeduta(st) {
   ]);
 }
 
-function bloccoPasto(quale, pasto) {
+function bloccoPasto(quale, pasto, vincoli, profilo) {
   if (!pasto) return h('div.nascondi');
   if (pasto.libero) {
     return h('div.blocco.blocco-quieto', [
@@ -115,10 +119,31 @@ function bloccoPasto(quale, pasto) {
   return h('details.piega', [
     h('summary', [h('span', [h('span.occhiello', quale + ' · '), pasto.nome])]),
     h('div.corpo', [
+      bannerVincoli(vincoli, profilo),
       h('p', { style: 'margin:0' }, pasto.testo),
       pasto.nota ? h('p.nota', { style: 'margin-top:8px' }, pasto.nota) : null,
     ]),
   ]);
+}
+
+/* ---------- banner dei vincoli alimentari ----------------
+   Stessa resa di cibo.js (classe .fascia.fascia-vincolo, vincolo del
+   profilo attivo per primo): sono allergie, contano più dell'ordine. */
+
+function ordinaVincoli(vincoli, profilo) {
+  if (!profilo) return vincoli;
+  const p = String(profilo).toLowerCase();
+  const miei = vincoli.filter((v) => String(v.chi || '').toLowerCase() === p);
+  const altri = vincoli.filter((v) => String(v.chi || '').toLowerCase() !== p);
+  return [...miei, ...altri];
+}
+
+function bannerVincoli(vincoli, profilo) {
+  const lista = ordinaVincoli(vincoli || [], profilo);
+  if (!lista.length) return null;
+  return h('div.fascia.fascia-vincolo', lista.map((v, i) => h('p', {
+    style: i === 0 ? 'margin:0' : 'margin:6px 0 0',
+  }, [h('strong', `${v.chi || ''}: `), v.testo])));
 }
 
 /** Mostra una voce a rotazione, con le frecce per sfogliare le altre. */

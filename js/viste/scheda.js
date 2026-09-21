@@ -75,7 +75,9 @@ export async function monta(contenitore, parametri) {
 
   (piano.sedute || []).forEach((seduta) => {
     const oggi = !archiviato && seduta.giorno === st.giorno;
-    schermata.append(bloccoSeduta(seduta, { oggi, settimanaFase, profilo }));
+    schermata.append(bloccoSeduta(seduta, {
+      oggi, settimanaFase, profilo, mostraInizio: !archiviato,
+    }));
   });
 
   /* --- altri piani -------------------------------------------- */
@@ -114,7 +116,9 @@ function bloccoRegole(piano) {
   ]);
 }
 
-function bloccoSeduta(seduta, { oggi, settimanaFase, profilo }) {
+function bloccoSeduta(seduta, {
+  oggi, settimanaFase, profilo, mostraInizio,
+}) {
   const giornoNome = GIORNI[seduta.giorno] || '';
 
   const summary = h('summary', [
@@ -129,8 +133,8 @@ function bloccoSeduta(seduta, { oggi, settimanaFase, profilo }) {
     bloccoFase('Riscaldamento', seduta.riscaldamento),
     elencoEsercizi(seduta.esercizi, settimanaFase, profilo),
     bloccoFase('Scarico', seduta.scarico),
-    oggi ? h('a.btn.btn-primo', { href: `#/sessione/${seduta.id}`, style: 'margin-top:8px' },
-      'Inizia allenamento') : null,
+    mostraInizio ? h('a.btn.btn-primo', { href: `#/sessione/${seduta.id}`, style: 'margin-top:8px' },
+      oggi ? 'Inizia allenamento' : 'Inizia questa seduta') : null,
   ].filter(Boolean));
 
   return h(oggi ? 'details.piega.sch-oggi' : 'details.piega', { open: oggi }, [summary, corpo]);

@@ -85,7 +85,7 @@ async function primaLaRete(richiesta) {
     if (risposta.ok) cache.put(richiesta, risposta.clone());
     return risposta;
   } catch {
-    const salvata = await cache.match(richiesta);
+    const salvata = await caches.match(richiesta);
     if (salvata) return salvata;
     return new Response(
       JSON.stringify({ errore: 'Piano non disponibile senza rete.' }),

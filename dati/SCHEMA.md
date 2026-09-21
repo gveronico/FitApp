@@ -75,6 +75,15 @@ dalla `dataInizio` impostata dall'utente e sceglie il piano il cui intervallo la
 | `corpoLibero` | Trazioni, plank | L'eventuale zavorra. Registra `pesoCorporeo + zavorra` |
 | `tempo` | Plank | I secondi al posto delle ripetizioni |
 
+### `caricoAlternativo` — lo stesso esercizio fatto in due modi
+
+Campo facoltativo, accanto a `carico`. Vale quando lo stesso movimento si può fare in due
+modi che si registrano in modo diverso — trazioni libere (`corpoLibero`) o alla macchina
+assistita (`assistito`). L'app mostra un interruttore sopra le serie: `carico` è il modo
+predefinito, `caricoAlternativo` l'altro, e la scelta si ricorda. In entrambi i casi la serie
+viene salvata con lo stesso `id` e con il carico reale in kg, quindi lo storico resta
+confrontabile: l'`id` non si duplica e non si rinomina.
+
 ### Esercizio che entra solo da una certa settimana
 
 Non c'è un campo dedicato. Si aggiunge come esercizio normale nella posizione giusta,

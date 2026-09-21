@@ -57,9 +57,36 @@ export async function monta(contenitore, parametri) {
     storico.set(e.id, altre.filter((s) => s.sessioneId === ultimaSessione));
   }));
 
-  /** esercizio -> testo della nota, salvata sulla prima serie dell'esercizio. */
+  /** esercizio -> testo della nota. Sta sulla prima serie registrata, qualunque sia il suo
+      indice: finché non c'è nessuna serie la nota resta qui, in memoria. */
   const note = new Map();
-  esercizi.forEach((e) => note.set(e.id, registrate.get(chiave(e.id, 0))?.note || ''));
+  esercizi.forEach((e) => {
+    const conNota = confermate(e).find((s) => s.note);
+    note.set(e.id, conNota ? conNota.note : '');
+  });
+
+  /** esercizio con caricoAlternativo -> modo scelto. Si ricorda tra una seduta e l'altra. */
+  const modi = new Map();
+  await Promise.all(esercizi.filter((e) => e.caricoAlternativo).map(async (e) => {
+    const salvato = await store.leggi(`modoCarico:${e.id}`);
+    if (salvato === e.carico || salvato === e.caricoAlternativo) modi.set(e.id, salvato);
+  }));
+
+  /** Il modo di calcolo attivo per l'esercizio: quello predefinito o l'alternativo. */
+  function modoDi(e) {
+    return modi.get(e.id) || e.carico;
+  }
+
+  /** Copia dell'esercizio con il modo scelto al posto di `carico`, per piani.js. */
+  function perCalcolo(e) {
+    return modi.has(e.id) ? { ...e, carico: modi.get(e.id) } : e;
+  }
+
+  /** Senza peso corporeo questi carichi non si possono calcolare. */
+  function richiedePeso(e) {
+    const modo = modoDi(e);
+    return modo === 'assistito' || modo === 'corpoLibero';
+  }
 
   /** chiave -> { carico, rip } come stringhe digitate, non ancora numeri. */
   const bozze = new Map();
@@ -170,7 +197,7 @@ export async function monta(contenitore, parametri) {
     if (campo) campo.classList.add('ses-campo-attivo');
 
     etichettaAttivo.textContent = tipo === 'carico'
-      ? piani.etichettaCarico(esercizio)
+      ? piani.etichettaCarico(perCalcolo(esercizio))
       : (esercizio.carico === 'tempo' ? 'Secondi' : 'Ripetizioni');
     valoreAttivo.textContent = bozza(esercizio, indice)[tipo] || '–';
     tastoVirgola.disabled = tipo !== 'carico';
@@ -220,7 +247,9 @@ export async function monta(contenitore, parametri) {
       const riferimento = registrate.get(k) || precedente(esercizio, indice);
       const digitato = riferimento ? aDigitato(esercizio, riferimento.carico) : null;
       bozze.set(k, {
-        carico: digitato == null ? '' : peso(digitato),
+        // Un digitato negativo vuol dire che quel carico è stato registrato nell'altro
+        // modo (assistita contro libera): meglio il campo vuoto di un numero assurdo.
+        carico: digitato == null || digitato < 0 ? '' : peso(digitato),
         rip: riferimento && riferimento.ripetizioni != null ? String(riferimento.ripetizioni) : '',
       });
     }
@@ -234,20 +263,21 @@ export async function monta(contenitore, parametri) {
     return ultime.find((s) => s.indice === indice) || ultime[ultime.length - 1];
   }
 
-  /** Dal numero digitato al carico da registrare. Senza peso corporeo si registra il grezzo. */
+  /** Dal numero digitato al carico da registrare, nel modo scelto per l'esercizio. */
   function aReale(esercizio, digitato) {
     // A corpo libero il campo vuoto vuol dire nessuna zavorra, cioè zero.
-    const n = numero(digitato) ?? (esercizio.carico === 'corpoLibero' ? 0 : null);
+    const n = numero(digitato) ?? (modoDi(esercizio) === 'corpoLibero' ? 0 : null);
     if (n == null) return null;
-    if (!pesoValido && (esercizio.carico === 'assistito' || esercizio.carico === 'corpoLibero')) return n;
-    return piani.caricoReale(esercizio, n, pesoCorporeo);
+    // Senza peso corporeo il carico reale non esiste: nessun numero è meglio di uno falso.
+    if (!pesoValido && richiedePeso(esercizio)) return null;
+    return piani.caricoReale(perCalcolo(esercizio), n, pesoCorporeo);
   }
 
   /** L'inverso, per riempire il campo. */
   function aDigitato(esercizio, reale) {
     if (reale == null) return null;
-    if (!pesoValido && (esercizio.carico === 'assistito' || esercizio.carico === 'corpoLibero')) return reale;
-    return piani.caricoDigitato(esercizio, reale, pesoCorporeo);
+    if (!pesoValido && richiedePeso(esercizio)) return reale;
+    return piani.caricoDigitato(perCalcolo(esercizio), reale, pesoCorporeo);
   }
 
   function confermate(esercizio) {
@@ -268,6 +298,7 @@ export async function monta(contenitore, parametri) {
   let notaCompleto = null;
   let btnAvanti = null;
   let btnChiudi = null;
+  let rigaBloccoPeso = null;
 
   function disegna() {
     const e = esercizi[iEs];
@@ -288,10 +319,13 @@ export async function monta(contenitore, parametri) {
       ]));
     }
 
-    if (!pesoValido && (e.carico === 'assistito' || e.carico === 'corpoLibero')) {
+    rigaBloccoPeso = null;
+    if (!pesoValido && richiedePeso(e)) {
+      rigaBloccoPeso = h('p.nota.ses-blocco-peso.nascondi', '');
       pezzi.push(h('div.fascia.fascia-avviso', [
-        'Manca il peso corporeo: registro il numero come lo digiti. ',
+        'Manca il peso corporeo: senza quello questo esercizio non si può registrare. ',
         h('a', { href: '#/altro', style: 'color:inherit' }, 'Impostalo in Altro →'),
+        rigaBloccoPeso,
       ]));
     }
 
@@ -308,12 +342,16 @@ export async function monta(contenitore, parametri) {
     }
     pezzi.push(h('div.pila-s', testa));
 
+    /* --- come si fa l'esercizio, quando ci sono due modi --- */
+
+    if (e.caricoAlternativo) pezzi.push(interruttoreModo(e));
+
     /* --- una riga per serie --- */
 
     const elenco = [
       h(aTempo ? 'div.ses-riga.ses-riga-tempo.ses-intest' : 'div.ses-riga.ses-intest', [
         h('span.occhiello', ''),
-        aTempo ? null : h('span.occhiello', piani.etichettaCarico(e)),
+        aTempo ? null : h('span.occhiello', piani.etichettaCarico(perCalcolo(e))),
         h('span.occhiello', aTempo ? 'Secondi' : 'Ripetizioni'),
         h('span'),
       ].filter(Boolean)),
@@ -324,7 +362,7 @@ export async function monta(contenitore, parametri) {
     /* --- storico e carico reale --- */
 
     pezzi.push(h('p.nota.ses-ultima', testoUltimaVolta(e)));
-    if (!aTempo && (e.carico === 'assistito' || e.carico === 'corpoLibero') && pesoValido) {
+    if (!aTempo && richiedePeso(e) && pesoValido) {
       pezzi.push(h('p.nota.ses-reale', ''));
     }
 
@@ -364,6 +402,37 @@ export async function monta(contenitore, parametri) {
     aggiornaAvanzamento(e);
     window.scrollTo(0, 0);
     aggiornaFondo();
+  }
+
+  /** Due stati: il modo predefinito del piano e quello alternativo. Cambia solo come
+      si converte il numero digitato — la serie finisce sempre sullo stesso esercizio. */
+  function interruttoreModo(e) {
+    const scelto = modoDi(e);
+    const bottoni = [e.carico, e.caricoAlternativo].map((m) => {
+      const b = h('button.ses-modo-btn', {
+        type: 'button',
+        'aria-pressed': m === scelto ? 'true' : 'false',
+        onclick: () => cambiaModo(e, m),
+      }, etichettaModo(m));
+      if (m === scelto) b.classList.add('ses-modo-attivo');
+      return b;
+    });
+    return h('div.ses-modo', [
+      h('p.occhiello', 'Come le fai'),
+      h('div.ses-modo-gruppo', bottoni),
+    ]);
+  }
+
+  async function cambiaModo(e, modo) {
+    if (modoDi(e) === modo) return;
+    modi.set(e.id, modo);
+    // Il numero digitato cambia significato: si ricostruisce dalle serie note.
+    for (const k of [...bozze.keys()]) {
+      if (k.startsWith(`${e.id}#`)) bozze.delete(k);
+    }
+    tocco();
+    disegna();
+    await store.scrivi(`modoCarico:${e.id}`, modo);
   }
 
   function rigaSerie(e, i, aTempo) {
@@ -425,6 +494,9 @@ export async function monta(contenitore, parametri) {
     const rip = numero(dati.rip);
     if (rip == null || rip <= 0) { tocco(); attiva(e, i, 'rip'); return; }
 
+    // Senza peso corporeo qui si registrerebbe un numero che poi esplode: meglio fermarsi.
+    if (!pesoValido && richiedePeso(e)) { spiegaBloccoPeso(e); return; }
+
     const gia = registrate.get(k);
     const serie = {
       id: gia ? gia.id : store.nuovoId('ser'),
@@ -437,11 +509,12 @@ export async function monta(contenitore, parametri) {
       carico: e.carico === 'tempo' ? null : aReale(e, dati.carico),
       ripetizioni: Math.round(rip),
       monitorata: sessione.monitorata,
-      note: i === 0 ? (note.get(e.id) || '') : '',
+      note: gia ? (gia.note || '') : '',
     };
 
     registrate.set(k, serie);
     await store.salvaSerie(serie);
+    await fissaNota(e);
 
     tocco();
     chiudiTastierino();
@@ -454,12 +527,40 @@ export async function monta(contenitore, parametri) {
     aggiornaAvanzamento(e);
   }
 
+  /** Spiega perché la serie non parte e manda dove si risolve. */
+  function spiegaBloccoPeso(e) {
+    tocco();
+    if (!rigaBloccoPeso) return;
+    rigaBloccoPeso.textContent = modoDi(e) === 'assistito'
+      ? 'Non registro: il carico è peso corporeo meno assistenza, e il peso corporeo manca.'
+      : 'Non registro: il carico è peso corporeo più zavorra, e il peso corporeo manca.';
+    rigaBloccoPeso.classList.remove('nascondi');
+    rigaBloccoPeso.scrollIntoView({ block: 'center' });
+  }
+
+  /** La nota dell'esercizio sta sulla prima serie registrata, qualunque sia il suo indice:
+      così non si perde se la serie 1 non viene mai confermata. Finché non c'è nessuna serie
+      resta in memoria e ci riproviamo alla prossima registrazione. */
+  async function fissaNota(e) {
+    const fatte = confermate(e);
+    if (!fatte.length) return;
+    const testo = note.get(e.id) || '';
+    const daSalvare = [];
+    fatte.forEach((s, i) => {
+      const atteso = i === 0 ? testo : '';
+      if ((s.note || '') !== atteso) { s.note = atteso; daSalvare.push(s); }
+    });
+    if (daSalvare.length) await store.salvaSerieMulte(daSalvare);
+  }
+
   async function salvaNota(e, testo) {
     note.set(e.id, testo);
-    const prima = registrate.get(chiave(e.id, 0));
-    if (!prima) return;
-    prima.note = testo;
-    await store.salvaSerie(prima);
+    await fissaNota(e);
+  }
+
+  /** Note scritte ma senza nessuna serie su cui posarsi: non si buttano in silenzio. */
+  function noteOrfane() {
+    return esercizi.filter((e) => (note.get(e.id) || '').trim() && !confermate(e).length);
   }
 
   /** Niente salti automatici: si evidenzia il passo successivo e basta. */
@@ -522,6 +623,18 @@ export async function monta(contenitore, parametri) {
     else if (!sessione.monitorata) {
       pezzi.push(h('div.blocco.blocco-quieto', [
         h('p.nota', 'Fase di avvicinamento: i carichi sono annotati, non conteggiati.'),
+      ]));
+    }
+
+    const orfane = noteOrfane();
+    if (orfane.length) {
+      pezzi.push(h('div.blocco', [
+        h('p.occhiello', 'Note non salvate'),
+        h('p.nota', 'Una nota si attacca alla prima serie registrata. Qui non c\'è nessuna serie, quindi questo testo resta solo a schermo:'),
+        h('ul.lista', orfane.map((e) => h('li', [
+          h('span.cresci', e.nome),
+          h('span.nota', note.get(e.id)),
+        ]))),
       ]));
     }
 
@@ -634,6 +747,18 @@ function numero(testo) {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Nome leggibile di un modo di carico, per l'interruttore. */
+const ETICHETTE_MODO = {
+  corpoLibero: 'Libere',
+  assistito: 'Assistite',
+  esterno: 'Con carico',
+  tempo: 'A tempo',
+};
+
+function etichettaModo(modo) {
+  return ETICHETTE_MODO[modo] || modo;
+}
+
 function segnaposto(esercizio, tipo) {
   if (tipo === 'rip') return esercizio.carico === 'tempo' ? 'sec' : 'rip';
   return 'kg';
@@ -715,6 +840,29 @@ const STILE = `
 .ses-riga-fatta .ses-campo { border-color: var(--verde); color: var(--verde); }
 .ses-riga-fatta .ses-campo-attivo { background: var(--verde); color: var(--su-colore); }
 .ses-riga-fatta .ses-fatta { border-color: var(--verde); color: var(--verde); }
+
+.ses-modo { display: grid; gap: 6px; }
+.ses-modo-gruppo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--bordo);
+  background: var(--linea);
+  border: var(--bordo) solid var(--linea);
+}
+.ses-modo-btn {
+  appearance: none;
+  min-height: var(--tap);
+  border: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ses-modo-attivo { background: var(--ink); color: var(--paper); }
+
+.ses-blocco-peso { color: inherit; font-weight: 700; margin-top: 6px; }
 
 .ses-ultima, .ses-reale { margin-top: -6px; }
 .ses-completo { font-weight: 700; }

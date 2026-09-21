@@ -191,9 +191,10 @@
           "ripMax": 10,
           "recuperoSec": 120,
           "carico": "corpoLibero",
+          "caricoAlternativo": "assistito",
           "superserie": null,
           "incrementoKg": 1.25,
-          "note": "2-3 serie leggere in salita prima delle serie di lavoro (non contano). Se si usa la macchina assistita, il carico da registrare è peso corporeo meno l'assistenza.",
+          "note": "2-3 serie leggere in salita prima delle serie di lavoro (non contano). Con la macchina assistita scegli \"Assistite\" sopra le serie: digiti l'assistenza, l'app registra peso corporeo meno assistenza.",
           "varianteFacile": "Trazioni assistite, o lat machine"
         },
         {

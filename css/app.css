@@ -345,8 +345,13 @@ label.campo { display: grid; gap: 6px; }
 }
 
 .fascia-avviso { background: var(--giallo); color: #000; border-color: #000; }
+
+/* Vincolo alimentare: allergie e intolleranze. Non è un errore, è una regola. */
 .fascia-vincolo { border-color: var(--rosso); color: var(--rosso); }
 .fascia-vincolo strong { color: var(--rosso); }
+
+/* Qualcosa non ha funzionato. */
+.fascia-errore { border-color: var(--rosso); color: var(--rosso); }
 
 /* ---------- sotto-schede -------------------------------- */
 
