@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="it" data-tema="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scheda</title>
+<meta name="description" content="Allenamento e alimentazione di Giuseppe e Corinna.">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Scheda">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icone/icona-180.png">
+<link rel="icon" href="icone/icona.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<main id="app" role="main" aria-live="polite"></main>
+
+<nav class="barra" id="barra" aria-label="Sezioni">
+  <a href="#/oggi" data-rotta="oggi">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v15H4z"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+    Oggi
+  </a>
+  <a href="#/scheda" data-rotta="scheda">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12h3M19 12h3M7 7v10M17 7v10"/><path d="M7 12h10"/></svg>
+    Scheda
+  </a>
+  <a href="#/progressi" data-rotta="progressi">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    Progressi
+  </a>
+  <a href="#/cibo" data-rotta="cibo">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v8a3 3 0 0 0 6 0V3M8 11v10"/><path d="M17 3c-1.5 2-2 4-2 7h4c0-3-.5-5-2-7zM17 10v11"/></svg>
+    Cibo
+  </a>
+  <a href="#/altro" data-rotta="altro">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+    Altro
+  </a>
+</nav>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

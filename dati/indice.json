@@ -1,0 +1,38 @@
+{
+  "versione": 1,
+  "aggiornato": "2026-09-21",
+  "allenamento": [
+    {
+      "id": "2026-fase1",
+      "file": "dati/allenamento/2026-fase1.json",
+      "nome": "Fase 1 — Avvicinamento",
+      "settimanaDa": 1,
+      "settimanaA": 4,
+      "monitorata": false
+    },
+    {
+      "id": "2026-fase2",
+      "file": "dati/allenamento/2026-fase2.json",
+      "nome": "Fase 2 — Scheda principale",
+      "settimanaDa": 5,
+      "settimanaA": 12,
+      "monitorata": true
+    }
+  ],
+  "cibo": [
+    {
+      "id": "2026-base",
+      "file": "dati/cibo/2026-base.json",
+      "nome": "Piano alimentare 1.1",
+      "settimanaDa": 1,
+      "settimanaA": 999
+    }
+  ],
+  "spesa": [
+    {
+      "id": "2026-spesa",
+      "file": "dati/cibo/2026-spesa.json",
+      "nome": "Lista della spesa 1.1"
+    }
+  ]
+}
