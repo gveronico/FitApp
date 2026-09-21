@@ -62,14 +62,12 @@ export async function monta(app) {
         h('p.nota', 'Tieni le proteine in almeno un pasto.'),
       ]));
     } else {
-      const vincoli = cibo.vincoli || [];
-      const profilo = st.impostazioni?.profilo || null;
-      schermata.append(bloccoPasto('Pranzo', giornoCibo.pranzo, vincoli, profilo));
-      schermata.append(bloccoPasto('Cena', giornoCibo.cena, vincoli, profilo));
+      schermata.append(bloccoPasto('Pranzo', giornoCibo.pranzo));
+      schermata.append(bloccoPasto('Cena', giornoCibo.cena));
     }
 
     schermata.append(rotazione('Colazione', cibo.colazioni?.map((c) => c.testo || c.nome) || []));
-    schermata.append(rotazione('Spuntino', cibo.spuntini || []));
+    schermata.append(rotazione('Spuntino', (cibo.spuntini || []).map((s) => s.testo)));
   }
 }
 
@@ -108,7 +106,7 @@ async function bloccoSeduta(st) {
   ]);
 }
 
-function bloccoPasto(quale, pasto, vincoli, profilo) {
+function bloccoPasto(quale, pasto) {
   if (!pasto) return h('div.nascondi');
   if (pasto.libero) {
     return h('div.blocco.blocco-quieto', [
@@ -119,31 +117,10 @@ function bloccoPasto(quale, pasto, vincoli, profilo) {
   return h('details.piega', [
     h('summary', [h('span', [h('span.occhiello', quale + ' · '), pasto.nome])]),
     h('div.corpo', [
-      bannerVincoli(vincoli, profilo),
       h('p', { style: 'margin:0' }, pasto.testo),
       pasto.nota ? h('p.nota', { style: 'margin-top:8px' }, pasto.nota) : null,
     ]),
   ]);
-}
-
-/* ---------- banner dei vincoli alimentari ----------------
-   Stessa resa di cibo.js (classe .fascia.fascia-vincolo, vincolo del
-   profilo attivo per primo): sono allergie, contano più dell'ordine. */
-
-function ordinaVincoli(vincoli, profilo) {
-  if (!profilo) return vincoli;
-  const p = String(profilo).toLowerCase();
-  const miei = vincoli.filter((v) => String(v.chi || '').toLowerCase() === p);
-  const altri = vincoli.filter((v) => String(v.chi || '').toLowerCase() !== p);
-  return [...miei, ...altri];
-}
-
-function bannerVincoli(vincoli, profilo) {
-  const lista = ordinaVincoli(vincoli || [], profilo);
-  if (!lista.length) return null;
-  return h('div.fascia.fascia-vincolo', lista.map((v, i) => h('p', {
-    style: i === 0 ? 'margin:0' : 'margin:6px 0 0',
-  }, [h('strong', `${v.chi || ''}: `), v.testo])));
 }
 
 /** Mostra una voce a rotazione, con le frecce per sfogliare le altre. */

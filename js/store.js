@@ -97,6 +97,13 @@ export async function scrivi(chiave, valore) {
   return valore;
 }
 
+/** Toglie una impostazione. Serve alle personalizzazioni: chiave assente vuol
+    dire "non personalizzato", che non è la stessa cosa di "personalizzato a vuoto". */
+export async function cancella(chiave) {
+  const s = await tx('impostazioni', 'readwrite');
+  await attesa(s.delete(chiave));
+}
+
 /* ---------- sessioni ------------------------------------ */
 
 /**

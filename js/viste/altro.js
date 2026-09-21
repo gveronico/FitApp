@@ -6,9 +6,10 @@ import { h, metti, iso, daIso, conferma, mesi } from '../ui.js';
 import * as store from '../store.js';
 import * as piani from '../piani.js';
 import * as backup from '../backup.js';
+import * as personalizza from '../personalizza.js';
 import { applicaTema } from '../app.js';
 
-const VERSIONE_APP = '1.0';
+const VERSIONE_APP = '1.1';
 const GIORNI_BACKUP = 30;
 
 export async function monta(contenitore) {
@@ -35,6 +36,7 @@ async function disegna(schermata) {
     store.spazio(),
     store.tutteLeSerie(),
   ]);
+  await personalizza.carica(true);
 
   const ridisegna = () => disegna(schermata);
 
@@ -43,6 +45,7 @@ async function disegna(schermata) {
     sezionePeso(imp),
     sezioneData(imp, st, ridisegna),
     sezionePiano(imp, elenco, ridisegna),
+    sezioneModifiche(personalizza.quante(), ridisegna),
     sezioneBackup(imp, { mb, conDati: serie.length > 0 }),
     sezioneTema(imp, ridisegna),
     sezioneCancella(),
@@ -242,6 +245,37 @@ function dataDaIsoLungo(testo) {
   const d = new Date(testo);
   if (Number.isNaN(d.getTime())) return testo;
   return `${d.getDate()} ${mesi[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/* ---------- modifiche fatte a mano sui piani -------------- */
+
+/** Nomi cambiati, voci tolte, voci spostate di lista. Stanno sopra ai piani
+    del repo e si possono togliere tutte insieme, senza toccare i carichi. */
+function sezioneModifiche(quante, ridisegna) {
+  const azzera = h('button.btn.btn-rosso', {
+    disabled: !quante,
+    onclick: async () => {
+      const testo = `Tolgo ${quante === 1 ? 'la modifica' : `tutte e ${quante} le modifiche`} `
+        + 'e rimetto i piani come sono scritti? Carichi, foto e spunte non si toccano.';
+      if (!conferma(testo)) return;
+      await personalizza.azzeraTutte();
+      ridisegna();
+    },
+  }, 'Azzera');
+
+  return h('div.blocco', [
+    h('p.occhiello', 'Modifiche ai piani'),
+    h('div.riga-sp', [
+      h('p.titolo-2', quante
+        ? `${quante} ${quante === 1 ? 'modifica' : 'modifiche'}`
+        : 'Nessuna'),
+      azzera,
+    ]),
+    h('p.nota', { style: 'margin-top:8px' },
+      'Nomi di esercizi e di pietanze cambiati, voci tolte, voci spostate da una lista '
+      + 'della spesa all’altra. Si fanno da Scheda e da Cibo, col pulsante Modifica. '
+      + 'Restano su questo telefono ed entrano nel backup.'),
+  ]);
 }
 
 function sezioneBackup(imp, { mb, conDati }) {

@@ -9,7 +9,7 @@
    Cambiando i file dell'app va alzato VERSIONE: è l'unica manutenzione
    che questo file richiede. */
 
-const VERSIONE = 'fitapp-v1';
+const VERSIONE = 'fitapp-v2';
 const GUSCIO = `${VERSIONE}-guscio`;
 const DATI = `${VERSIONE}-dati`;
 
@@ -22,6 +22,7 @@ const DA_PRECARICARE = [
   './js/ui.js',
   './js/store.js',
   './js/piani.js',
+  './js/personalizza.js',
   './js/backup.js',
   './js/viste/avvio.js',
   './js/viste/oggi.js',

@@ -1,8 +1,14 @@
 /* piani.js — legge i piani dal repo e dice a che punto del programma siamo.
-   I file in dati/ sono di sola lettura: qui non si scrive mai niente. */
+   I file in dati/ sono di sola lettura: qui non si scrive mai niente.
+
+   Sopra al piano letto dal repo passa sempre personalizza.js, che applica le
+   modifiche fatte dall'app (nomi cambiati, voci tolte o spostate di lista).
+   La cache tiene il JSON com'è nel repo: le personalizzazioni si applicano a
+   ogni lettura, su una copia. */
 
 import { iso, daIso, giornoIso } from './ui.js';
 import * as store from './store.js';
+import * as personalizza from './personalizza.js';
 
 const cache = new Map();
 
@@ -19,8 +25,33 @@ export function indice() {
   return prendi('dati/indice.json');
 }
 
-export function piano(riferimento) {
-  return prendi(riferimento.file);
+export async function piano(riferimento) {
+  const [dati] = await Promise.all([prendi(riferimento.file), personalizza.carica()]);
+  return personalizza.applica(dati);
+}
+
+/* ---------- gruppi muscolari ------------------------------ */
+
+/* Il tag `gruppo` di ogni esercizio. Sono quattro più l'addome: è la divisione
+   con cui si guardano i progressi, non una classificazione anatomica. */
+export const GRUPPI = [
+  { id: 'braccia', nome: 'Braccia', nota: 'Bicipiti e tricipiti' },
+  { id: 'gambe', nome: 'Gambe', nota: '' },
+  { id: 'dorso', nome: 'Dorso', nota: '' },
+  { id: 'petto-spalle', nome: 'Petto e spalle', nota: '' },
+  { id: 'addome', nome: 'Addome', nota: '' },
+];
+
+const NOMI_GRUPPO = new Map(GRUPPI.map((g) => [g.id, g.nome]));
+
+export function nomeGruppo(id) {
+  return NOMI_GRUPPO.get(id) || 'Senza gruppo';
+}
+
+/** L'ordine dei gruppi come stanno in GRUPPI; quelli sconosciuti in fondo. */
+export function ordineGruppo(id) {
+  const i = GRUPPI.findIndex((g) => g.id === id);
+  return i < 0 ? GRUPPI.length : i;
 }
 
 /**
@@ -109,6 +140,17 @@ export function serieDi(esercizio, settimanaNellaFase) {
     }
   }
   return n;
+}
+
+/**
+ * Ripetizioni attese dalla serie di indice `i` (0-based).
+ * Con `ripSerie` la scheda dice un numero diverso per ogni serie — il 12-10-8
+ * della Fase 1. Senza, non c'è un numero atteso: il range sta in `rip`.
+ */
+export function ripAttese(esercizio, i) {
+  const scala = esercizio && esercizio.ripSerie;
+  if (!Array.isArray(scala) || !scala.length) return null;
+  return scala[Math.min(i, scala.length - 1)] ?? null;
 }
 
 /**

@@ -115,10 +115,11 @@ export async function corpoCarichi(contenitore) {
     return;
   }
 
-  const { nomiEsercizi, nomiSedute } = await costruisciMappe();
+  const { nomiEsercizi, nomiSedute, gruppiEsercizi } = await costruisciMappe();
   let calcolo = calcolaIncrementi(serieGrezze);
 
   let selezionato = null;
+  let gruppoScelto = null;
 
   async function ricarica() {
     serieGrezze = await store.tutteLeSerie();
@@ -149,9 +150,15 @@ export async function corpoCarichi(contenitore) {
         disegna();
       }, eliminaSerieRiga));
     } else {
-      metti(contenitore, vistaElenco(calcolo, nomiEsercizi, nomiSedute, elenco, st, (id) => {
-        selezionato = id;
-        disegna();
+      metti(contenitore, vistaElenco(calcolo, {
+        nomiEsercizi,
+        nomiSedute,
+        gruppiEsercizi,
+        elenco,
+        st,
+        gruppoScelto,
+        onSeleziona: (id) => { selezionato = id; disegna(); },
+        onGruppo: (g) => { gruppoScelto = g; disegna(); },
       }));
     }
   };
@@ -232,22 +239,48 @@ export function calcolaIncrementi(serie) {
   return { esercizi, media, inAttesa: esercizi.filter((e) => e.inAttesa).length };
 }
 
-/* ---------- risoluzione nomi (esercizio, seduta) dai piani -------- */
+/**
+ * Media degli incrementi per gruppo muscolare — braccia, gambe, dorso,
+ * petto e spalle, addome. È la divisione con cui si guardano i progressi.
+ * Entrano solo gli esercizi conteggiabili, come nella media generale.
+ */
+export function aggregaPerGruppo(esercizi, gruppi) {
+  const conteggiabili = (esercizi || []).filter((e) => !e.inAttesa && e.conteggiato);
+
+  const per = new Map();
+  conteggiabili.forEach((e) => {
+    const g = gruppi.get(e.esercizioId) || null;
+    if (!per.has(g)) per.set(g, []);
+    per.get(g).push(e.incrementoPercento);
+  });
+
+  return [...per.entries()]
+    .map(([gruppo, valori]) => ({
+      gruppo,
+      quanti: valori.length,
+      media: valori.reduce((a, b) => a + b, 0) / valori.length,
+    }))
+    .sort((a, b) => piani.ordineGruppo(a.gruppo) - piani.ordineGruppo(b.gruppo));
+}
+
+/* ---------- risoluzione nomi e gruppi dai piani ------------------- */
 
 async function costruisciMappe() {
   const idx = await piani.indice();
   const tuttiIPiani = await Promise.all(idx.allenamento.map((r) => piani.piano(r)));
   const nomiEsercizi = new Map();
   const nomiSedute = new Map();
+  const gruppiEsercizi = new Map();
   tuttiIPiani.forEach((p) => {
     (p.sedute || []).forEach((sed) => {
       if (!nomiSedute.has(sed.id)) nomiSedute.set(sed.id, sed.nome);
       (sed.esercizi || []).forEach((es) => {
         if (!nomiEsercizi.has(es.id)) nomiEsercizi.set(es.id, es.nome);
+        if (es.gruppo && !gruppiEsercizi.has(es.id)) gruppiEsercizi.set(es.id, es.gruppo);
       });
     });
   });
-  return { nomiEsercizi, nomiSedute };
+  return { nomiEsercizi, nomiSedute, gruppiEsercizi };
 }
 
 /* ---------- vista: elenco (media + esercizi + aggregati) ---------- */
@@ -259,14 +292,59 @@ function vistaVuota() {
   ]);
 }
 
-function vistaElenco({ esercizi, media }, nomiEsercizi, nomiSedute, elenco, st, onSeleziona) {
+function vistaElenco({ esercizi, media }, {
+  nomiEsercizi, nomiSedute, gruppiEsercizi, elenco, st, gruppoScelto, onSeleziona, onGruppo,
+}) {
   const nodi = [bloccoMedia(media, elenco, st)];
-  if (esercizi.length) {
-    nodi.push(listaEsercizi(esercizi, nomiEsercizi, onSeleziona));
-    const aggregati = bloccoPerSeduta(esercizi, nomiSedute);
-    if (aggregati) nodi.push(aggregati);
+  if (!esercizi.length) return nodi;
+
+  const perGruppo = aggregaPerGruppo(esercizi, gruppiEsercizi);
+  const bloccoGruppi = bloccoPerGruppo(perGruppo, gruppoScelto, onGruppo);
+  if (bloccoGruppi) nodi.push(bloccoGruppi);
+
+  const filtrati = gruppoScelto
+    ? esercizi.filter((e) => (gruppiEsercizi.get(e.esercizioId) || null) === gruppoScelto)
+    : esercizi;
+
+  if (gruppoScelto) {
+    nodi.push(h('p.occhiello', `Solo ${piani.nomeGruppo(gruppoScelto).toLowerCase()}`));
   }
+  nodi.push(listaEsercizi(filtrati, nomiEsercizi, onSeleziona));
+
+  const aggregati = bloccoPerSeduta(esercizi, nomiSedute);
+  if (aggregati) nodi.push(aggregati);
   return nodi;
+}
+
+/** Un gruppo per riga, toccabile: filtra l'elenco degli esercizi sotto. */
+function bloccoPerGruppo(righe, gruppoScelto, onGruppo) {
+  if (!righe.length) return null;
+
+  return h('div.blocco', [
+    h('p.occhiello', 'Per gruppo muscolare'),
+    h('ul.lista', { style: 'margin-top:4px' }, righe.map((r) => {
+      const scelto = gruppoScelto === r.gruppo;
+      let colore = 'spento';
+      if (r.media > 0) colore = 'verde';
+      else if (r.media < 0) colore = 'rosso';
+
+      return h(scelto ? 'li.pro-gruppo-scelto' : 'li', [
+        h('button.pro-riga', {
+          onclick: () => onGruppo(scelto ? null : r.gruppo),
+          'aria-pressed': String(scelto),
+        }, [
+          h('span.cresci', [
+            h('div', piani.nomeGruppo(r.gruppo)),
+            h('p.nota', `${r.quanti} ${r.quanti === 1 ? 'esercizio' : 'esercizi'}`),
+          ]),
+          h(`span.${colore}`, percento(r.media)),
+        ]),
+      ]);
+    })),
+    h('p.nota', { style: 'margin-top:8px' }, gruppoScelto
+      ? 'Tocca di nuovo il gruppo per rivedere tutti gli esercizi.'
+      : 'Tocca un gruppo per vedere solo i suoi esercizi.'),
+  ]);
 }
 
 function bloccoMedia(media, elenco, st) {
@@ -476,6 +554,7 @@ const STILE = `
   background: none; border: 0; margin: 0; padding: 0;
   font: inherit; color: inherit; text-align: left; cursor: pointer;
 }
+.pro-gruppo-scelto { border-left: var(--bordo-xl) solid var(--linea); padding-left: 10px; }
 `;
 
 function iniettaStile() {

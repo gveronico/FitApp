@@ -16,9 +16,19 @@ Sul telefono, nella memoria del browser. Nessun account, nessun server, nessun u
 
 Questo ha una conseguenza che conviene sapere: **l'app di Giuseppe e quella di Corinna sono lo stesso link ma due archivi separati**, e se si cancella l'app o si cambia telefono i dati se ne vanno. Per questo in **Altro** c'è **Esporta backup**, che genera un file `.zip` con carichi e foto da salvare su iCloud. L'app avvisa quando l'ultimo backup ha più di 30 giorni.
 
+## Cambiare un nome, togliere una voce, spostare la spesa
+
+Le cose piccole si fanno dall'app, senza chiedere niente a nessuno. C'è un pulsante **Modifica** in:
+
+- **Scheda** → cambia il nome di un esercizio. L'identificativo resta quello di prima, quindi lo storico dei carichi non si spezza.
+- **Cibo → Settimana** → cambia nome e contenuto di un pasto, togli una colazione o uno spuntino.
+- **Cibo → Spesa** → rinomina una voce, toglila, o **spostala da una lista all'altra**. La spunta la segue.
+
+Le modifiche restano su quel telefono ed entrano nel backup. In **Altro → Modifiche ai piani** si vede quante sono e si azzerano tutte insieme, rimettendo i piani come stanno nel repo.
+
 ## Aggiornare i piani
 
-I piani di allenamento e alimentazione **non si modificano dall'app**: sono file JSON in `dati/`, e li scrive Claude in chat partendo da `ALLENAMENTO.md` e `ALIMENTAZIONE.md`.
+Le cose grosse — una scheda nuova, una settimana alimentare diversa — **non si fanno dall'app**: sono file JSON in `dati/`, e li scrive Claude in chat partendo da `ALLENAMENTO.md` e `ALIMENTAZIONE.md`.
 
 Per una scheda nuova:
 
@@ -41,9 +51,11 @@ css/app.css             il sistema visivo: nero su bianco, nient'altro
 js/app.js               avvio, tema, navigazione
 js/store.js             IndexedDB — l'unico posto dove si scrive
 js/piani.js             lettura dei piani, fase e settimana correnti
+js/personalizza.js      le modifiche fatte dall'app, sopra ai piani
 js/backup.js            export e import dello zip
 js/viste/               una schermata per file
 dati/                   i piani, in sola lettura
+prove/                  due file di prove, si lanciano con node
 ```
 
 ## Sviluppo
@@ -55,6 +67,18 @@ python -m http.server 8080
 ```
 
 Poi `http://localhost:8080`. Per il service worker, `localhost` è considerato sicuro come `https`.
+
+Le prove girano senza server e senza dipendenze:
+
+```bash
+node prove/prova.mjs
+```
+
+```bash
+node prove/prova-viste.mjs
+```
+
+Dettagli in [`prove/LEGGIMI.md`](prove/LEGGIMI.md).
 
 Cambiando i file dell'app va alzato `VERSIONE` in `sw.js`, altrimenti i telefoni continuano a servire la copia vecchia dalla cache.
 

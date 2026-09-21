@@ -346,10 +346,6 @@ label.campo { display: grid; gap: 6px; }
 
 .fascia-avviso { background: var(--giallo); color: #000; border-color: #000; }
 
-/* Vincolo alimentare: allergie e intolleranze. Non è un errore, è una regola. */
-.fascia-vincolo { border-color: var(--rosso); color: var(--rosso); }
-.fascia-vincolo strong { color: var(--rosso); }
-
 /* Qualcosa non ha funzionato. */
 .fascia-errore { border-color: var(--rosso); color: var(--rosso); }
 
@@ -413,6 +409,47 @@ details.piega > .corpo { padding: 12px 14px 14px; }
   display: grid;
   gap: 12px;
   justify-items: center;
+}
+
+/* ---------- modifica in linea --------------------------- */
+/* Serve a cambiare un nome o togliere una voce senza passare da Claude.
+   Vive in app.css e non in una vista perché la usano scheda, cibo e altro. */
+
+.mod { display: grid; gap: 10px; padding: 8px 0; }
+.mod-campo { gap: 4px; }
+.mod-azioni { display: flex; flex-wrap: wrap; gap: 8px; }
+.mod-azioni .btn { flex: 1 1 auto; }
+
+.mod-apri {
+  appearance: none;
+  flex: none;
+  width: 38px;
+  min-height: 38px;
+  border: var(--bordo) solid var(--linea-2);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mod-apri:active { background: var(--ink); color: var(--paper); border-color: var(--linea); }
+
+/* Riga cambiata a mano rispetto al piano scritto nel repo. */
+.mod-segno { font-size: 12px; color: var(--ink-2); }
+
+/* ---------- tag ----------------------------------------- */
+
+.tag {
+  display: inline-block;
+  border: 1px solid var(--linea-2);
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  white-space: nowrap;
 }
 
 /* ---------- utilità ------------------------------------- */

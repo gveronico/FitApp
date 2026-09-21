@@ -1,9 +1,10 @@
 /* scheda.js — la scheda di allenamento in lettura: si consulta a casa o tra
    una serie e l'altra. Non registra niente — la registrazione è in sessione.js. */
 
-import { h, durata } from '../ui.js';
+import { h, metti, durata, modifica, bottoneModifica } from '../ui.js';
 import * as piani from '../piani.js';
 import * as store from '../store.js';
+import * as personalizza from '../personalizza.js';
 
 const GIORNI = ['', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica'];
 
@@ -73,12 +74,55 @@ export async function monta(contenitore, parametri) {
 
   const settimanaFase = settimanaNellaFaseEff(riferimento, st.settimana);
 
-  (piano.sedute || []).forEach((seduta) => {
-    const oggi = !archiviato && seduta.giorno === st.giorno;
-    schermata.append(bloccoSeduta(seduta, {
-      oggi, settimanaFase, profilo, mostraInizio: !archiviato,
-    }));
-  });
+  /* Quali fisarmoniche sono aperte: si ridisegna a ogni rinomina e senza
+     questo insieme si richiuderebbe tutto sotto le mani. */
+  const aperte = new Set(
+    (piano.sedute || [])
+      .filter((s) => !archiviato && s.giorno === st.giorno)
+      .map((s) => s.id),
+  );
+
+  const barraModifica = h('div.riga-sp.sch-barra');
+  const contenitoreSedute = h('div.pila');
+  schermata.append(barraModifica, contenitoreSedute);
+
+  let inModifica = false;
+
+  function disegnaSedute() {
+    metti(barraModifica, archiviato ? [] : [
+      h('p.occhiello', inModifica ? 'Tocca ✎ per cambiare un nome' : 'Sedute della settimana'),
+      h('button.btn.btn-s', {
+        type: 'button',
+        onclick: () => { inModifica = !inModifica; disegnaSedute(); },
+      }, inModifica ? 'Fine' : 'Modifica nomi'),
+    ]);
+
+    metti(contenitoreSedute, (piano.sedute || []).map((seduta) => bloccoSeduta(seduta, {
+      oggi: !archiviato && seduta.giorno === st.giorno,
+      aperta: aperte.has(seduta.id),
+      onApri: (apri) => { if (apri) aperte.add(seduta.id); else aperte.delete(seduta.id); },
+      settimanaFase,
+      profilo,
+      mostraInizio: !archiviato,
+      inModifica: inModifica && !archiviato,
+      onRinomina: rinomina,
+    })));
+  }
+
+  /** Cambia solo il nome mostrato: l'id dell'esercizio, e con lui tutto lo
+      storico dei carichi, non si tocca mai. */
+  async function rinomina(esercizio, nuovoNome) {
+    const originale = esercizio.nomeOriginale || esercizio.nome;
+    const nome = String(nuovoNome || '').trim();
+    await personalizza.scrivi(
+      personalizza.chiaveEsercizio(esercizio.id),
+      nome && nome !== originale ? { nome } : null,
+    );
+    piano = await piani.piano(riferimento);
+    disegnaSedute();
+  }
+
+  disegnaSedute();
 
   /* --- altri piani -------------------------------------------- */
 
@@ -116,9 +160,10 @@ function bloccoRegole(piano) {
   ]);
 }
 
-function bloccoSeduta(seduta, {
-  oggi, settimanaFase, profilo, mostraInizio,
-}) {
+function bloccoSeduta(seduta, opzioni) {
+  const {
+    oggi, aperta, onApri, settimanaFase, profilo, mostraInizio,
+  } = opzioni;
   const giornoNome = GIORNI[seduta.giorno] || '';
 
   const summary = h('summary', [
@@ -131,13 +176,16 @@ function bloccoSeduta(seduta, {
 
   const corpo = h('div.corpo', [
     bloccoFase('Riscaldamento', seduta.riscaldamento),
-    elencoEsercizi(seduta.esercizi, settimanaFase, profilo),
+    elencoEsercizi(seduta.esercizi, settimanaFase, profilo, opzioni),
     bloccoFase('Scarico', seduta.scarico),
     mostraInizio ? h('a.btn.btn-primo', { href: `#/sessione/${seduta.id}`, style: 'margin-top:8px' },
       oggi ? 'Inizia allenamento' : 'Inizia questa seduta') : null,
   ].filter(Boolean));
 
-  return h(oggi ? 'details.piega.sch-oggi' : 'details.piega', { open: oggi }, [summary, corpo]);
+  return h(oggi ? 'details.piega.sch-oggi' : 'details.piega', {
+    open: aperta ?? oggi,
+    ontoggle: (ev) => onApri?.(ev.target.open),
+  }, [summary, corpo]);
 }
 
 function bloccoFase(etichetta, fase) {
@@ -149,13 +197,15 @@ function bloccoFase(etichetta, fase) {
 }
 
 /** L'ol degli esercizi, con le superserie raggruppate visivamente. */
-function elencoEsercizi(esercizi, settimanaFase, profilo) {
+function elencoEsercizi(esercizi, settimanaFase, profilo, opzioni) {
   const gruppi = raggruppaSuperserie(esercizi || []);
   const voci = [];
   gruppi.forEach((gruppo) => {
     const inSuperserie = gruppo.length > 1;
     gruppo.forEach((e, i) => {
-      voci.push(elementoEsercizio(e, settimanaFase, profilo, inSuperserie, i === 0, i === gruppo.length - 1));
+      voci.push(elementoEsercizio(
+        e, settimanaFase, profilo, inSuperserie, i === 0, i === gruppo.length - 1, opzioni,
+      ));
     });
   });
   return h('ol.lista.lista-num', { style: 'margin:10px 0' }, voci);
@@ -184,13 +234,16 @@ function raggruppaSuperserie(esercizi) {
   return gruppi;
 }
 
-function elementoEsercizio(e, settimanaFase, profilo, inSuperserie, primo, ultimo) {
+function elementoEsercizio(e, settimanaFase, profilo, inSuperserie, primo, ultimo, opzioni = {}) {
   const n = piani.serieDi(e, settimanaFase);
   const vuoto = n === 0;
 
   const corpo = [];
   if (inSuperserie && primo) corpo.push(h('p.occhiello', 'Superserie'));
-  corpo.push(h('div', e.nome));
+  corpo.push(h('div.sch-nome', [
+    h('span', e.nome),
+    e.gruppo ? h('span.tag', piani.nomeGruppo(e.gruppo)) : null,
+  ].filter(Boolean)));
   if (e.varianteFacile && profilo === 'corinna') {
     corpo.push(h('p.sch-variante', `Variante: ${e.varianteFacile}`));
   }
@@ -215,7 +268,34 @@ function elementoEsercizio(e, settimanaFase, profilo, inSuperserie, primo, ultim
     if (ultimo) sel += '.sch-ss-ultimo';
   }
 
-  return h(sel, [h('span.cresci', corpo)]);
+  const li = h(sel, [h('span.cresci', corpo)]);
+  if (opzioni.inModifica && opzioni.onRinomina) {
+    li.append(bottoneModifica(
+      () => apriModificaEsercizio(li, e, opzioni.onRinomina),
+      `Cambia il nome di ${e.nome}`,
+    ));
+  }
+  return li;
+}
+
+/** Sostituisce il contenuto della riga con il riquadro di modifica, e lo
+    rimette com'era se si annulla. */
+function apriModificaEsercizio(li, e, onRinomina) {
+  const originale = e.nomeOriginale || e.nome;
+  const comEra = [...li.childNodes];
+  const chiudi = () => li.replaceChildren(...comEra);
+
+  const azioni = e.personalizzato
+    ? [{ etichetta: 'Rimetti quello del piano', onClick: () => onRinomina(e, originale) }]
+    : [];
+
+  li.replaceChildren(h('span.cresci', [modifica({
+    campi: [{ chiave: 'nome', etichetta: 'Nome dell’esercizio', valore: e.nome }],
+    nota: e.personalizzato ? `Nel piano si chiama “${originale}”.` : null,
+    azioni,
+    onSalva: (v) => onRinomina(e, v.nome),
+    onAnnulla: chiudi,
+  })]));
 }
 
 /** Da quale settimana della fase un esercizio a serie:0 comincia a comparire. */
@@ -268,6 +348,8 @@ details.piega.sch-oggi > summary { background: var(--ink); color: var(--paper); 
 li.sch-ss { border-left: var(--bordo-xl) solid var(--linea); padding-left: 10px; margin-left: -2px; }
 li.sch-ss:not(.sch-ss-ultimo) { border-bottom: 0; padding-bottom: 2px; }
 .sch-variante { font-size: 13px; color: var(--ink-2); margin: 2px 0 0; }
+.sch-nome { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sch-barra { min-height: 38px; }
 .sch-riga-piano {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   min-height: var(--tap); padding: 10px 0; border-bottom: 1px solid var(--linea-2);

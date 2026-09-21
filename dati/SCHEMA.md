@@ -48,9 +48,12 @@ dalla `dataInizio` impostata dall'utente e sceglie il piano il cui intervallo la
         {
           "id": "panca-piana-manubri",
           "nome": "Panca piana con manubri",
+          "gruppo": "petto-spalle",         // vedi sotto. Obbligatorio: senza, l'esercizio
+                                            // sparisce dagli aggregati per gruppo
           "serie": 2,
           "serieDaSettimana": { "3": 3 },   // dalla settimana 3 diventano 3 serie. Assente = fisse
           "rip": "10-12",                   // come si legge a schermo
+          "ripSerie": [12, 10, 8],          // facoltativo: un numero per serie, vedi sotto
           "ripMin": 10,
           "ripMax": 12,                     // usato per la doppia progressione
           "recuperoSec": 90,
@@ -65,6 +68,37 @@ dalla `dataInizio` impostata dall'utente e sceglie il piano il cui intervallo la
   ]
 }
 ```
+
+### `gruppo` — il gruppo muscolare
+
+Uno di questi cinque, esatto. È la divisione con cui l'app aggrega i progressi.
+
+| Valore | Etichetta a schermo |
+|---|---|
+| `braccia` | Braccia (bicipiti e tricipiti) |
+| `gambe` | Gambe |
+| `dorso` | Dorso |
+| `petto-spalle` | Petto e spalle |
+| `addome` | Addome |
+
+L'elenco vive in `js/piani.js` (`GRUPPI`): aggiungerne uno significa toccare quello,
+non solo i JSON. Un esercizio senza `gruppo` continua a funzionare ma finisce in
+"Senza gruppo" negli aggregati — nei piani non deve succedere.
+
+### `ripSerie` — ripetizioni diverse per ogni serie
+
+Facoltativo. Dove la scheda prescrive una scala — il 12-10-8 della Fase 1 — si scrive
+`"ripSerie": [12, 10, 8]` e `serie` deve valere quanto la lunghezza dell'array.
+Cosa cambia nell'app:
+
+- il campo delle ripetizioni parte **già scritto con il numero prescritto**, non con
+  quello dell'ultima volta: lì le ripetizioni sono fisse, e ripescare l'11 di una
+  serie andata storta abbasserebbe il bersaglio in silenzio. Il **carico** invece
+  continua a venire dall'ultima volta;
+- l'intestazione della colonna diventa `Rip · 12-10-8`.
+
+Senza `ripSerie` non cambia niente: vale il range in `rip`, come prima.
+Sugli esercizi a tempo (`"carico": "tempo"`) non si mette: lì il numero sono secondi.
 
 ### `carico` — come si registra il peso
 
@@ -108,12 +142,10 @@ entra dalla settimana 3 con `"serie": 0, "serieDaSettimana": { "3": 2 }`.
 {
   "id": "2026-base",
   "nome": "Piano alimentare 1.1",
-  "fonte": "ALIMENTAZIONE.md v1.1",
-  "vincoli": [                        // banner sempre visibile. NON è decorazione
-    { "chi": "Giuseppe", "testo": "Niente olive. Olio d'oliva sì." },
-    { "chi": "Corinna", "testo": "Fuori pesche, albicocche, nettarine, noci, noci pecan." }
-  ],
-  "avvertenze": ["Frutta a guscio: solo buste singole, mai i mix."],
+  "fonte": "ALIMENTAZIONE.md v1.2",
+  // Niente `vincoli` e niente `avvertenze`: dal 21/09/2026 allergie, intolleranze e
+  // note sulle etichette non si stampano più, né qui né a schermo. Giuseppe e Corinna
+  // le conoscono. Continuano a valere quando si scrive il piano — stanno in CLAUDE.md.
   "regole": [
     { "titolo": "Proteine a ogni pasto", "testo": "Colazione compresa." }
   ],
@@ -163,5 +195,36 @@ Un pasto con `"libero": true` non ha ingredienti: è una serata libera.
 }
 ```
 
-La chiave della spunta è `spesa:<idLista>:<voce>`, quindi **rinominare una voce azzera la sua spunta**.
-È accettabile: le spunte si azzerano ogni settimana comunque.
+La chiave della spunta è `spesa:<idLista>:<voce>`, con la voce **come sta scritta qui**:
+resta quella anche dopo che l'utente ha rinominato o spostato la riga dall'app, così la
+spunta non si perde. Quello che invece spezza il legame è **riscrivere la voce in questo
+file**: la spunta e l'eventuale personalizzazione restano orfane. È accettabile — le
+spunte si azzerano ogni settimana comunque — ma vale la pena non rimaneggiare le voci
+esistenti solo per sistemare la punteggiatura.
+
+---
+
+## Personalizzazioni — quello che scrive l'utente sopra al piano
+
+I file di questa cartella restano di sola lettura. Sopra ci passa `js/personalizza.js`,
+che applica le modifiche fatte dall'app: un nome cambiato, una voce tolta, una voce
+spostata da una lista della spesa all'altra. Stanno in IndexedDB insieme al resto,
+quindi entrano nel backup e non escono dal telefono.
+
+```
+pz:esercizio:<idEsercizio>               { nome }
+pz:pasto:<idPiano>:<giorno>:<quale>      { nome, testo }
+pz:colazione:<idPiano>:<slug>            { nome, testo, nascosto }
+pz:spuntino:<idPiano>:<slug>             { testo, nascosto }
+pz:spesa:<idLista>:<voce>                { testo, lista, nascosto }
+```
+
+Due cose da non dimenticare:
+
+1. **Degli esercizi si cambia solo il nome mostrato.** L'`id` non si tocca, quindi la
+   regola ferrea più in alto continua a valere e lo storico dei carichi regge.
+2. **Le voci di cibo non hanno un id nel piano**, quindi la chiave è il loro testo.
+   Riscrivere quel testo in un piano nuovo lascia orfana la personalizzazione. Va bene
+   così: un piano nuovo arriva già scritto come lo si voleva.
+
+`Altro → Modifiche ai piani` dice quante sono e le toglie tutte insieme.

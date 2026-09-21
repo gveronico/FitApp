@@ -7,15 +7,15 @@
       "file": "dati/allenamento/2026-fase1.json",
       "nome": "Fase 1 — Avvicinamento",
       "settimanaDa": 1,
-      "settimanaA": 4,
+      "settimanaA": 6,
       "monitorata": false
     },
     {
       "id": "2026-fase2",
       "file": "dati/allenamento/2026-fase2.json",
       "nome": "Fase 2 — Scheda principale",
-      "settimanaDa": 5,
-      "settimanaA": 12,
+      "settimanaDa": 7,
+      "settimanaA": 14,
       "monitorata": true
     }
   ],
@@ -23,7 +23,7 @@
     {
       "id": "2026-base",
       "file": "dati/cibo/2026-base.json",
-      "nome": "Piano alimentare 1.1",
+      "nome": "Piano alimentare 1.2",
       "settimanaDa": 1,
       "settimanaA": 999
     }
@@ -32,7 +32,7 @@
     {
       "id": "2026-spesa",
       "file": "dati/cibo/2026-spesa.json",
-      "nome": "Lista della spesa 1.1"
+      "nome": "Lista della spesa 1.2"
     }
   ]
 }

@@ -9,7 +9,7 @@
         {
           "nome": "Verdura",
           "nota": "Deve esserci tutta la settimana",
-          "voci": ["Zucchine", "Broccoli", "Spinaci", "Fagiolini", "Carote", "Peperoni", "Zucca", "Patate", "Pomodorini", "Insalata mista e rucola", "Finocchi", "Cipolla, aglio, limoni"]
+          "voci": ["Zucchine", "Broccoli", "Spinaci", "Fagiolini", "Carote", "Sedano", "Peperoni", "Zucca", "Patate", "Pomodorini", "Insalata mista e rucola", "Finocchi", "Cipolla, aglio, limoni"]
         },
         {
           "nome": "Frutta",
@@ -21,7 +21,7 @@
         },
         {
           "nome": "Dispensa",
-          "voci": ["Riso", "Passata di pomodoro", "Ceci in barattolo", "Lenticchie in barattolo", "Tonno in scatola", "Olio extravergine d'oliva", "Parmigiano o grana", "Miele", "Sale, spezie, aceto"]
+          "voci": ["Riso", "Passata di pomodoro", "Lenticchie in barattolo", "Tonno in scatola", "Olio extravergine d'oliva", "Parmigiano o grana", "Miele", "Sale, spezie, aceto"]
         }
       ]
     },
@@ -32,19 +32,18 @@
       "reparti": [
         {
           "nome": "Senza lattosio",
-          "voci": ["Yogurt greco senza lattosio (il formato grande, si usa tutti i giorni)", "Skyr senza lattosio", "Ricotta senza lattosio", "Latte senza lattosio o bevanda di soia"]
+          "voci": ["Yogurt greco senza lattosio (il formato grande, si usa tutti i giorni)", "Skyr senza lattosio", "Ricotta senza lattosio", "Latte proteico o senza lattosio", "Bevanda di soia"]
         },
         {
           "nome": "Cereali e pane",
-          "voci": ["Fiocchi d'avena", "Muesli senza noci (leggere l'etichetta)", "Pasta integrale", "Farro o orzo perlato", "Riso basmati", "Pane integrale", "Piadine o wrap integrali", "Gallette integrali"]
+          "voci": ["Cereali proteici", "Fiocchi d'avena", "Muesli", "Pasta integrale", "Farro o orzo perlato", "Riso basmati", "Pane integrale", "Piadine o wrap integrali", "Gallette integrali"]
         },
         {
           "nome": "Proteine specifiche",
-          "voci": ["Salmone o sgombro (freschi o in scatola)", "Bresaola", "Prosciutto crudo"]
+          "voci": ["Salmone (tranci)", "Sgombro in scatola", "Bresaola", "Prosciutto crudo", "Barrette proteiche"]
         },
         {
           "nome": "Frutta a guscio e semi",
-          "nota": "Solo buste singole, mai i mix",
           "voci": ["Mandorle", "Nocciole", "Pistacchi", "Semi di zucca", "Semi di girasole"]
         },
         {

@@ -250,10 +250,29 @@ export async function monta(contenitore, parametri) {
         // Un digitato negativo vuol dire che quel carico è stato registrato nell'altro
         // modo (assistita contro libera): meglio il campo vuoto di un numero assurdo.
         carico: digitato == null || digitato < 0 ? '' : peso(digitato),
-        rip: riferimento && riferimento.ripetizioni != null ? String(riferimento.ripetizioni) : '',
+        rip: ripDiPartenza(esercizio, indice, riferimento),
       });
     }
     return bozze.get(k);
+  }
+
+  /**
+   * Con cosa parte il campo delle ripetizioni.
+   *
+   * Dove la scheda prescrive un numero per serie — il 12-10-8 della Fase 1 —
+   * vince la prescrizione, non l'ultima volta: le ripetizioni lì sono fisse, e
+   * ripescare l'11 di una serie andata storta abbasserebbe il bersaglio in
+   * silenzio. Il carico continua a venire dall'ultima volta.
+   * Una serie già confermata in questa sessione mostra sempre quello che dice lei.
+   */
+  function ripDiPartenza(esercizio, indice, riferimento) {
+    const gia = registrate.get(chiave(esercizio.id, indice));
+    if (gia && gia.ripetizioni != null) return String(gia.ripetizioni);
+
+    const attese = piani.ripAttese(esercizio, indice);
+    if (attese != null) return String(attese);
+
+    return riferimento && riferimento.ripetizioni != null ? String(riferimento.ripetizioni) : '';
   }
 
   /** La serie di pari indice dell'ultima volta; se manca, l'ultima disponibile. */
@@ -352,7 +371,7 @@ export async function monta(contenitore, parametri) {
       h(aTempo ? 'div.ses-riga.ses-riga-tempo.ses-intest' : 'div.ses-riga.ses-intest', [
         h('span.occhiello', ''),
         aTempo ? null : h('span.occhiello', piani.etichettaCarico(perCalcolo(e))),
-        h('span.occhiello', aTempo ? 'Secondi' : 'Ripetizioni'),
+        h('span.occhiello', etichettaRip(e, aTempo)),
         h('span'),
       ].filter(Boolean)),
     ];
@@ -462,7 +481,7 @@ export async function monta(contenitore, parametri) {
     const b = h('button.ses-campo', {
       type: 'button',
       onclick: () => attiva(e, i, tipo),
-    }, testo || segnaposto(e, tipo));
+    }, testo || segnaposto(e, tipo, i));
     if (!testo) b.classList.add('ses-campo-vuoto');
     campi.set(`${chiave(e.id, i)}:${tipo}`, b);
     return b;
@@ -472,7 +491,7 @@ export async function monta(contenitore, parametri) {
     const b = campi.get(`${chiave(e.id, i)}:${tipo}`);
     if (!b) return;
     const v = bozza(e, i)[tipo];
-    b.textContent = v || segnaposto(e, tipo);
+    b.textContent = v || segnaposto(e, tipo, i);
     b.classList.toggle('ses-campo-vuoto', !v);
     if (tipo === 'carico') aggiornaReale(e);
   }
@@ -759,9 +778,20 @@ function etichettaModo(modo) {
   return ETICHETTE_MODO[modo] || modo;
 }
 
-function segnaposto(esercizio, tipo) {
-  if (tipo === 'rip') return esercizio.carico === 'tempo' ? 'sec' : 'rip';
-  return 'kg';
+/** Intestazione della colonna: dove la scheda sale a scalare, lo dice. */
+function etichettaRip(esercizio, aTempo) {
+  if (aTempo) return 'Secondi';
+  const scala = esercizio.ripSerie;
+  return Array.isArray(scala) && scala.length ? `Rip · ${scala.join('-')}` : 'Ripetizioni';
+}
+
+function segnaposto(esercizio, tipo, indice = 0) {
+  if (tipo !== 'rip') return 'kg';
+  if (esercizio.carico === 'tempo') return 'sec';
+  // Dove la scheda chiede un numero preciso per questa serie, il campo vuoto
+  // mostra quello: si vede cosa fare senza tornare alla scheda.
+  const attese = piani.ripAttese(esercizio, indice);
+  return attese == null ? 'rip' : String(attese);
 }
 
 function mostraVuoto(contenitore, messaggio) {

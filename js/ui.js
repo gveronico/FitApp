@@ -111,6 +111,68 @@ export function durata(sec) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/* ---------- modifica in linea --------------------------- */
+
+/**
+ * Riquadro per cambiare un nome, o toglierlo, senza uscire dalla schermata.
+ * Restituisce un nodo da mettere al posto della riga che si sta modificando.
+ *
+ *   campi:   [{ chiave, etichetta, valore, lungo }]
+ *   onSalva: (valori) => …   valori è { chiave: testo }
+ *   azioni:  [{ etichetta, onClick, classe }] — in mezzo, prima di Annulla
+ */
+export function modifica({
+  campi = [], onSalva, onAnnulla, azioni = [], nota,
+}) {
+  const controlli = new Map();
+
+  const valori = () => {
+    const out = {};
+    controlli.forEach((el, chiave) => { out[chiave] = el.value.trim(); });
+    return out;
+  };
+
+  // Restituisce quel che torna onSalva: se è asincrona, chi chiama può attenderla.
+  const salva = () => (onSalva ? onSalva(valori()) : undefined);
+
+  const righe = campi.map((c) => {
+    const el = h(c.lungo ? 'textarea' : 'input', {
+      type: c.lungo ? null : 'text',
+      value: c.valore == null ? '' : String(c.valore),
+      'aria-label': c.etichetta,
+      onkeydown: c.lungo ? null : (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); salva(); } },
+    });
+    controlli.set(c.chiave, el);
+    return h('label.campo.mod-campo', [h('span.occhiello', c.etichetta), el]);
+  });
+
+  const bottoni = [
+    h('button.btn.btn-s', { type: 'button', onclick: salva }, 'Salva'),
+    ...azioni.map((a) => h(`button.btn.btn-s${a.classe ? '.' + a.classe : ''}`, {
+      type: 'button', onclick: a.onClick,
+    }, a.etichetta)),
+    h('button.btn.btn-s', { type: 'button', onclick: onAnnulla }, 'Annulla'),
+  ];
+
+  const riquadro = h('div.mod', [
+    ...righe,
+    nota ? h('p.nota', nota) : null,
+    h('div.mod-azioni', bottoni),
+  ].filter(Boolean));
+
+  const primo = controlli.values().next().value;
+  if (primo) requestAnimationFrame(() => { primo.focus(); primo.select?.(); });
+
+  return riquadro;
+}
+
+/** Il pulsantino che apre la modifica di una riga. */
+export function bottoneModifica(onClick, etichetta = 'Modifica') {
+  return h('button.mod-apri', {
+    type: 'button', onclick: onClick, 'aria-label': etichetta, title: etichetta,
+  }, '✎');
+}
+
 /* ---------- interazione --------------------------------- */
 
 /** Vibrazione breve, dove supportata. Silenziosa altrove. */
