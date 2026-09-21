@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Scheda">
+  <rect width="512" height="512" fill="#000000"/>
+  <g fill="#ffffff">
+    <rect x="96" y="246" width="320" height="20"/>
+    <rect x="128" y="176" width="34" height="160"/>
+    <rect x="90" y="216" width="26" height="80"/>
+    <rect x="350" y="176" width="34" height="160"/>
+    <rect x="396" y="216" width="26" height="80"/>
+  </g>
+</svg>

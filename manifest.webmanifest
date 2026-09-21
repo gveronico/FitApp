@@ -1,0 +1,25 @@
+{
+  "name": "Scheda — allenamento e alimentazione",
+  "short_name": "Scheda",
+  "description": "Allenamento e alimentazione di Giuseppe e Corinna. I dati restano sul telefono.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "lang": "it",
+  "dir": "ltr",
+  "categories": ["health", "fitness", "lifestyle"],
+  "icons": [
+    { "src": "icone/icona.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icone/icona-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icone/icona-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icone/icona-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icone/icona-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Allenamento di oggi", "url": "./index.html#/oggi" },
+    { "name": "Lista della spesa", "url": "./index.html#/cibo/spesa" }
+  ]
+}
