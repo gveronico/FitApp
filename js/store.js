@@ -9,7 +9,7 @@
      spunte        { id, spuntato }     spesa e preparazione della domenica
 */
 
-const DB_NOME = 'scheda';
+const DB_NOME = 'fitapp';
 const DB_VERSIONE = 1;
 
 let _db = null;

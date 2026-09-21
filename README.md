@@ -1,4 +1,4 @@
-# Scheda
+# FitApp
 
 Allenamento e alimentazione di Giuseppe e Corinna. Si apre da un link, si aggiunge alla schermata Home e da lì si comporta come un'app. Funziona senza rete.
 

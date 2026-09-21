@@ -15,7 +15,7 @@ export async function monta(app) {
     metti(app, h('div.schermata', [
       h('div', { style: 'height:8vh' }),
       h('p.occhiello', 'Allenamento e alimentazione'),
-      h('h1.titolo', 'Scheda'),
+      h('h1.titolo', 'FitApp'),
       h('p.nota', 'I dati restano su questo telefono. Nessun account, nessun server.'),
       h('hr.sep'),
       h('p.occhiello', 'Chi sei?'),

@@ -1,6 +1,6 @@
 {
-  "name": "Scheda — allenamento e alimentazione",
-  "short_name": "Scheda",
+  "name": "FitApp — allenamento e alimentazione",
+  "short_name": "FitApp",
   "description": "Allenamento e alimentazione di Giuseppe e Corinna. I dati restano sul telefono.",
   "start_url": "./index.html",
   "scope": "./",

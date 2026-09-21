@@ -183,10 +183,10 @@ export function leggiZip(bytes) {
     const lungExtra = dv.getUint16(p + 28, true);
 
     if (metodo !== 0) {
-      throw new Error(`Lo zip è compresso (metodo ${metodo}). Scheda legge solo i backup che ha creato lei.`);
+      throw new Error(`Lo zip è compresso (metodo ${metodo}). FitApp legge solo i backup che ha creato lei.`);
     }
     if (flag & 0x08) {
-      throw new Error('Lo zip usa i descrittori di dati e non si può leggere. Serve un backup creato da Scheda.');
+      throw new Error('Lo zip usa i descrittori di dati e non si può leggere. Serve un backup creato da FitApp.');
     }
 
     const nome = new TextDecoder().decode(b.subarray(p + TESTA_LOCALE, p + TESTA_LOCALE + lungNome));
@@ -247,7 +247,7 @@ export async function esporta() {
     foto: metaFoto,
     versione: VERSIONE_FORMATO,
     creato: new Date().toISOString(),
-    app: 'scheda',
+    app: 'fitapp',
   };
 
   voci.unshift({ nome: 'dati.json', dati: JSON.stringify(contenuto, null, 2) });
@@ -259,8 +259,8 @@ export async function esporta() {
     throw new Error(`Non riesco a costruire il file di backup: ${e?.message || e}`);
   }
 
-  const profilo = dati.impostazioni?.profilo || 'scheda';
-  const nomeFile = `scheda-${nomeSicuro(profilo)}-${iso()}.zip`;
+  const profilo = dati.impostazioni?.profilo || 'fitapp';
+  const nomeFile = `fitapp-${nomeSicuro(profilo)}-${iso()}.zip`;
 
   try {
     scarica(zip, nomeFile);
@@ -310,7 +310,7 @@ async function apriFile(file) {
 
   const voci = leggiZip(bytes);
   const json = voci.find((v) => v.nome === 'dati.json');
-  if (!json) throw new Error('Dentro lo zip non c’è dati.json: non è un backup di Scheda.');
+  if (!json) throw new Error('Dentro lo zip non c’è dati.json: non è un backup di FitApp.');
 
   let dati;
   try {
@@ -319,8 +319,8 @@ async function apriFile(file) {
     throw new Error(`dati.json è rovinato e non si legge: ${e?.message || e}`);
   }
 
-  if (dati.app && dati.app !== 'scheda') {
-    throw new Error(`Questo backup è dell’app «${dati.app}», non di Scheda.`);
+  if (dati.app && dati.app !== 'fitapp') {
+    throw new Error(`Questo backup è dell’app «${dati.app}», non di FitApp.`);
   }
   if (dati.versione && dati.versione > VERSIONE_FORMATO) {
     throw new Error(`Il backup è in versione ${dati.versione}, questa app arriva alla ${VERSIONE_FORMATO}. Aggiorna l’app.`);

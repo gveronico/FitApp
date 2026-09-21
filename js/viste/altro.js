@@ -16,7 +16,7 @@ export async function monta(contenitore) {
 
   const testata = h('header.testata', [
     h('div', [
-      h('p.occhiello', 'Scheda'),
+      h('p.occhiello', 'FitApp'),
       h('h1.titolo', 'Altro'),
     ]),
   ]);
@@ -47,7 +47,7 @@ async function disegna(schermata) {
     sezioneTema(imp, ridisegna),
     sezioneCancella(),
     h('hr.sep'),
-    h('p.nota', 'Scheda — allenamento e alimentazione di Giuseppe e Corinna.'),
+    h('p.nota', 'FitApp — allenamento e alimentazione di Giuseppe e Corinna.'),
     h('p.nota', `Versione ${VERSIONE_APP}`),
   );
 }
