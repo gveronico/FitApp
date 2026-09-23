@@ -5,7 +5,9 @@
    Rotta a schermo pieno: la barra di navigazione è nascosta dal router, l'uscita
    la fornisce il pulsante Esci in testata. */
 
-import { h, metti, durata, peso, iso, tocco, conferma } from '../ui.js';
+import {
+  h, metti, durata, peso, iso, daIso, giorni, mesiBrevi, tocco, conferma,
+} from '../ui.js';
 import * as piani from '../piani.js';
 import * as store from '../store.js';
 
@@ -40,6 +42,10 @@ export async function monta(contenitore, parametri) {
   /* ---------- sessione ----------------------------------- */
 
   const sessione = await apriSessione(st, seduta);
+
+  /** La stessa seduta già fatta questa settimana, in un'altra sessione. */
+  const giaFatta = (await piani.fatteInSettimana(st.dataInizio, new Date(), sessione.id))
+    .filter((f) => f.sedutaId === seduta.id);
 
   /** chiave -> serie salvata. La chiave lega esercizio e indice della serie. */
   const registrate = new Map();
@@ -275,6 +281,12 @@ export async function monta(contenitore, parametri) {
     return riferimento && riferimento.ripetizioni != null ? String(riferimento.ripetizioni) : '';
   }
 
+  /** La serie di pari indice dell'ultima volta, senza ripieghi: il riferimento della riga. */
+  function stessaSerieUltimaVolta(esercizio, indice) {
+    const ultime = storico.get(esercizio.id);
+    return ultime ? ultime.find((s) => s.indice === indice) || null : null;
+  }
+
   /** La serie di pari indice dell'ultima volta; se manca, l'ultima disponibile. */
   function precedente(esercizio, indice) {
     const ultime = storico.get(esercizio.id);
@@ -336,6 +348,12 @@ export async function monta(contenitore, parametri) {
         'Manca la data del primo allenamento: conto come settimana 1. ',
         h('a', { href: '#/altro', style: 'color:inherit' }, 'Impostala in Altro →'),
       ]));
+    }
+
+    if (giaFatta.length && iEs === 0) {
+      pezzi.push(h('div.fascia.fascia-avviso',
+        `${seduta.nome} l’hai già fatto questa settimana (${giaFatta.map((f) => dataBreve(f.data)).join(' e ')}). `
+        + 'Questa è una sessione nuova: quella resta com’era.'));
     }
 
     rigaBloccoPeso = null;
@@ -465,16 +483,46 @@ export async function monta(contenitore, parametri) {
       onclick: () => registra(e, i),
     }, registrate.has(k) ? 'Aggiorna' : 'Fatta');
 
+    const prima = h('span.ses-prima');
     const riga = h(aTempo ? 'div.ses-riga.ses-riga-tempo' : 'div.ses-riga', [
       h('span.ses-n', String(i + 1)),
       campoCarico,
       campoRip,
       fatta,
+      prima,
     ].filter(Boolean));
 
-    righe.set(k, { riga, fatta });
+    righe.set(k, { riga, fatta, prima });
     if (registrate.has(k)) riga.classList.add('ses-riga-fatta');
+    aggiornaPrima(e, i);
     return riga;
+  }
+
+  /**
+   * Sotto ogni serie, la stessa serie dell'ultima volta: il riferimento per salire.
+   * Se il carico scritto è diverso lo dice, con la differenza. La serie di oggi
+   * si salva come serie nuova: quella dell'ultima volta resta nello storico, ed
+   * è il confronto tra le due che fa la percentuale in Progressi.
+   */
+  function aggiornaPrima(e, i) {
+    const g = righe.get(chiave(e.id, i));
+    if (!g || !g.prima) return;
+    const rif = stessaSerieUltimaVolta(e, i);
+    if (!rif) { g.prima.textContent = ''; g.prima.className = 'ses-prima'; return; }
+
+    const aTempo = e.carico === 'tempo';
+    let testo = aTempo || rif.carico == null
+      ? `ultima volta ${rif.ripetizioni ?? '–'} ${aTempo ? 's' : 'rip'}`
+      : `ultima volta ${peso(rif.carico)} kg × ${rif.ripetizioni ?? '–'}`;
+    let classe = '';
+    if (!aTempo && rif.carico != null) {
+      const ora = aReale(e, bozza(e, i).carico);
+      const diff = ora == null ? 0 : +(ora - rif.carico).toFixed(2);
+      if (diff > 0) { testo += ` · +${peso(diff)} kg`; classe = ' verde'; }
+      else if (diff < 0) { testo += ` · −${peso(-diff)} kg`; classe = ' rosso'; }
+    }
+    g.prima.textContent = testo;
+    g.prima.className = `ses-prima${classe}`;
   }
 
   function campo(e, i, tipo, testo) {
@@ -493,7 +541,7 @@ export async function monta(contenitore, parametri) {
     const v = bozza(e, i)[tipo];
     b.textContent = v || segnaposto(e, tipo, i);
     b.classList.toggle('ses-campo-vuoto', !v);
-    if (tipo === 'carico') aggiornaReale(e);
+    if (tipo === 'carico') { aggiornaReale(e); aggiornaPrima(e, i); }
   }
 
   /** "carico reale: 58 kg" — solo per assistito e corpo libero, sull'ultima riga toccata. */
@@ -709,15 +757,23 @@ export async function monta(contenitore, parametri) {
     }
     const carichi = fatte.map((s) => s.carico).filter((c) => c != null && Number.isFinite(c));
     if (!carichi.length) return `${fatte.length} serie`;
-    return `${fatte.length} serie · ${peso(Math.max(...carichi))} kg`;
+    const oggiMax = Math.max(...carichi);
+    const prima = (storico.get(e.id) || []).map((s) => s.carico).filter((c) => c != null && Number.isFinite(c));
+    let diff = '';
+    if (prima.length) {
+      const d = +(oggiMax - Math.max(...prima)).toFixed(2);
+      if (d > 0) diff = ` (+${peso(d)})`;
+      else if (d < 0) diff = ` (−${peso(-d)})`;
+    }
+    return `${fatte.length} serie · ${peso(oggiMax)} kg${diff}`;
   }
 
+  /** Da quando viene il riferimento sotto le serie. */
   function testoUltimaVolta(e) {
     const rif = precedente(e, 0);
     if (!rif) return 'primo allenamento su questo esercizio';
-    if (e.carico === 'tempo') return `ultima volta: ${rif.ripetizioni} s`;
-    if (rif.carico == null) return `ultima volta: ${rif.ripetizioni} ripetizioni`;
-    return `ultima volta: ${peso(rif.carico)} kg × ${rif.ripetizioni}`;
+    return `sotto ogni serie, quella dell’ultima volta (${dataBreve(rif.data)}). `
+      + 'Se sali, la serie di oggi si aggiunge: l’ultima volta resta nello storico.';
   }
 
   disegna();
@@ -754,6 +810,12 @@ async function apriSessione(st, seduta) {
 }
 
 /* ---------- minuterie ------------------------------------- */
+
+/** 'lun 21 set' */
+function dataBreve(dataIso) {
+  const d = daIso(dataIso);
+  return `${giorni[d.getDay()].slice(0, 3)} ${d.getDate()} ${mesiBrevi[d.getMonth()]}`;
+}
 
 function chiave(esercizioId, indice) {
   return `${esercizioId}#${indice}`;
@@ -843,6 +905,10 @@ const STILE = `
   border-bottom: 1px solid var(--linea-2);
 }
 .ses-riga-tempo { grid-template-columns: 24px 1fr auto; }
+.ses-prima { grid-column: 2 / -1; margin-top: -4px; font-size: 13px; color: var(--ink-2); }
+.ses-prima:empty { display: none; }
+.ses-prima.verde { color: var(--verde); font-weight: 700; }
+.ses-prima.rosso { color: var(--rosso); font-weight: 700; }
 .ses-riga:last-child { border-bottom: 0; }
 .ses-intest { padding-top: 0; padding-bottom: 4px; border-bottom: var(--bordo) solid var(--linea); }
 .ses-n { font-size: 13px; font-weight: 800; color: var(--ink-2); font-variant-numeric: tabular-nums; }

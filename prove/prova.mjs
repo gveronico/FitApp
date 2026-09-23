@@ -42,7 +42,7 @@ await prova('ogni esercizio ha un gruppo muscolare noto', () => {
 await prova('in Fase 1 le serie sono 3 e le ripetizioni 12-10-8', () => {
   const conCarico = fase1.sedute.flatMap((s) => s.esercizi)
     .filter((e) => e.carico !== 'tempo' && e.id !== 'stacco-rialzo-bilanciere');
-  assert.ok(conCarico.length >= 20, 'pochi esercizi controllati');
+  assert.ok(conCarico.length >= 19, 'pochi esercizi controllati');
   conCarico.forEach((e) => {
     assert.deepEqual(e.ripSerie, [12, 10, 8], `${e.id}: ripSerie sbagliate`);
     assert.equal(piani.serieDi(e, 1), 3, `${e.id}: non fa 3 serie dalla settimana 1`);
@@ -59,11 +59,80 @@ await prova('ripAttese dà il numero della serie giusta', () => {
   assert.equal(piani.ripAttese(plank, 0), null, 'a tempo non c’è un numero atteso');
 });
 
-await prova('lo stacco da rialzo entra dalla settimana 4', () => {
-  const e = fase1.sedute[3].esercizi[0];
-  assert.equal(e.id, 'stacco-rialzo-bilanciere');
-  assert.equal(piani.serieDi(e, 3), 0);
-  assert.equal(piani.serieDi(e, 4), 3);
+/* ---------- Fase 1 v5.0 (23/09/2026) ----------------------- */
+
+const sedutaF1 = (id) => fase1.sedute.find((s) => s.id === id);
+const idsF1 = (id) => sedutaF1(id).esercizi.map((e) => e.id);
+
+await prova('Fase 1: le sei settimane sono uguali, niente entra a metà', () => {
+  fase1.sedute.flatMap((s) => s.esercizi).forEach((e) => {
+    assert.equal(e.serieDaSettimana, undefined, `${e.id}: cambia ancora a metà fase`);
+    assert.equal(piani.serieDi(e, 1), piani.serieDi(e, 6), `${e.id}: settimana 1 ≠ settimana 6`);
+    assert.ok(!/settimana \d/i.test(e.note || ''), `${e.id}: la nota parla ancora di settimane`);
+  });
+});
+
+await prova('Fase 1: Upper A con le croci al 2 e la lat machine al 3', () => {
+  assert.deepEqual(idsF1('upper-a').slice(0, 3),
+    ['panca-piana-manubri', 'croci-panca-piana', 'lat-machine-triangolo']);
+});
+
+await prova('Fase 1: squat con bilanciere al posto del goblet, stesso id della Fase 2', () => {
+  assert.equal(idsF1('lower-a')[0], 'squat-bilanciere');
+  assert.ok(!idsF1('lower-a').includes('goblet-squat-manubrio'));
+  assert.ok(fase2.sedute.some((s) => s.esercizi.some((e) => e.id === 'squat-bilanciere')));
+});
+
+await prova('Fase 1: lat machine presa larga al posto delle trazioni assistite', () => {
+  const primo = sedutaF1('upper-b').esercizi[0];
+  assert.equal(primo.id, 'lat-machine-presa-larga');
+  assert.equal(primo.carico, 'esterno', 'deve chiedere i kg, non il peso corporeo');
+  assert.ok(!fase1.sedute.flatMap((s) => s.esercizi).some((e) => e.carico === 'assistito'));
+});
+
+await prova('Fase 1: Lower B senza hip thrust, stacco da rialzo dalla settimana 1', () => {
+  assert.ok(!idsF1('lower-b').includes('hip-thrust-bilanciere'));
+  const stacco = sedutaF1('lower-b').esercizi[0];
+  assert.equal(stacco.id, 'stacco-rialzo-bilanciere');
+  assert.equal(piani.serieDi(stacco, 1), 3);
+});
+
+await prova('Fase 1: due allenamenti nelle settimane 1-2, poi quattro', () => {
+  assert.equal(piani.allenamentiPrevisti(fase1, 1), 2);
+  assert.equal(piani.allenamentiPrevisti(fase1, 2), 2);
+  assert.equal(piani.allenamentiPrevisti(fase1, 3), 4);
+  assert.equal(piani.allenamentiPrevisti(fase1, 6), 4);
+  assert.equal(piani.allenamentiPrevisti(fase2, 1), 4, 'senza scala: uno per seduta');
+});
+
+await prova('Fase 1 è monitorata, e le sue serie vecchie contano lo stesso', async () => {
+  const idx = await piani.indice();
+  assert.equal(idx.allenamento.find((r) => r.id === '2026-fase1').monitorata, true);
+  assert.equal(fase1.monitorata, true);
+
+  const monitorati = await piani.pianiMonitorati();
+  // Registrate prima del 23/09, quando la Fase 1 non contava: portano monitorata:false.
+  const serie = [
+    { esercizioId: 'squat-bilanciere', data: '2026-09-22', carico: 40, ripetizioni: 8, indice: 2, monitorata: false, pianoId: '2026-fase1' },
+    { esercizioId: 'squat-bilanciere', data: '2026-09-29', carico: 50, ripetizioni: 8, indice: 2, monitorata: true, pianoId: '2026-fase1' },
+  ];
+  const e = progressi.calcolaIncrementi(serie, monitorati).esercizi[0];
+  assert.ok(e, 'lo squat non entra nel calcolo');
+  assert.equal(e.incrementoPercento, 25);
+  assert.equal(e.conteggiato, true);
+  assert.equal(progressi.calcolaIncrementi(serie).esercizi[0].inAttesa, true,
+    'senza l’elenco dei piani vale ancora il flag della serie');
+});
+
+/* ---------- settimana in corso --------------------------------- */
+
+await prova('inizioSettimana: settimana del programma, o da lunedì senza data', () => {
+  // Inizio lunedì 21/09: mercoledì 30/09 sta nella settimana 2, che parte il 28.
+  assert.equal(piani.inizioSettimana('2026-09-21', new Date(2026, 8, 30)), '2026-09-28');
+  // Inizio di giovedì: le settimane vanno da giovedì a mercoledì.
+  assert.equal(piani.inizioSettimana('2026-09-24', new Date(2026, 9, 6)), '2026-10-01');
+  // Senza data: il lunedì della settimana di calendario.
+  assert.equal(piani.inizioSettimana(null, new Date(2026, 8, 27)), '2026-09-21');
 });
 
 await prova('i riscaldamenti non nominano più macchine da cardio', () => {

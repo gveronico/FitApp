@@ -13,11 +13,11 @@ export async function monta(contenitore, parametri) {
   const vistaIniziale = parametri && parametri[0] === 'foto' ? 'foto' : 'carichi';
 
   const elenco = await piani.elencoPiani();
-  const pianoMonitorato = elenco.find((p) => p.monitorata) || null;
+  const pianoAttivo = elenco.find((p) => p.attivo) || null;
 
   const testata = h('header.testata', [
     h('div', [
-      h('p.occhiello', pianoMonitorato ? pianoMonitorato.nome : 'Progressi'),
+      h('p.occhiello', pianoAttivo ? pianoAttivo.nome : 'Progressi'),
       h('h1.titolo', 'Progressi'),
     ]),
   ]);
@@ -106,9 +106,10 @@ function osservaSmontaggio(contenitore, alSmontaggio) {
 export async function corpoCarichi(contenitore) {
   iniettaStile();
 
-  let [serieGrezze, elenco, st] = await Promise.all([
-    store.tutteLeSerie(), piani.elencoPiani(), piani.stato(),
+  let [serieGrezze, elenco, st, monitorati] = await Promise.all([
+    store.tutteLeSerie(), piani.elencoPiani(), piani.stato(), piani.pianiMonitorati(),
   ]);
+  const conta = (s) => contaNeiCalcoli(s, monitorati);
 
   if (!serieGrezze.length) {
     metti(contenitore, vistaVuota());
@@ -116,14 +117,14 @@ export async function corpoCarichi(contenitore) {
   }
 
   const { nomiEsercizi, nomiSedute, gruppiEsercizi } = await costruisciMappe();
-  let calcolo = calcolaIncrementi(serieGrezze);
+  let calcolo = calcolaIncrementi(serieGrezze, monitorati);
 
   let selezionato = null;
   let gruppoScelto = null;
 
   async function ricarica() {
     serieGrezze = await store.tutteLeSerie();
-    calcolo = calcolaIncrementi(serieGrezze);
+    calcolo = calcolaIncrementi(serieGrezze, monitorati);
   }
 
   /** Cancellazione definitiva di una serie sbagliata: l'unico modo, prima
@@ -148,7 +149,7 @@ export async function corpoCarichi(contenitore) {
       metti(contenitore, vistaDettaglio(e, serieGrezze, nomiEsercizi, () => {
         selezionato = null;
         disegna();
-      }, eliminaSerieRiga));
+      }, eliminaSerieRiga, conta));
     } else {
       metti(contenitore, vistaElenco(calcolo, {
         nomiEsercizi,
@@ -173,7 +174,10 @@ export async function corpoCarichi(contenitore) {
 
 /**
  * Da tutte le serie registrate, calcola l'incremento per esercizio.
- *   - Solo serie monitorata === true, carico finito > 0, ripetizioni finite > 0.
+ *   - Solo serie che contano (vedi contaNeiCalcoli), carico finito > 0,
+ *     ripetizioni finite > 0.
+ *   - `monitorati` è l'insieme degli id dei piani monitorati: senza, decide il
+ *     flag `monitorata` scritto sulla serie.
  *   - Per ogni data, il carico di riferimento è il massimo carico di quella
  *     giornata; le ripetizioni associate sono il massimo tra le serie che
  *     hanno quel carico massimo.
@@ -189,9 +193,9 @@ export async function corpoCarichi(contenitore) {
  *   media: media semplice degli incrementi conteggiabili, o null se nessuno
  *   inAttesa: quanti esercizi hanno una sola data
  */
-export function calcolaIncrementi(serie) {
+export function calcolaIncrementi(serie, monitorati = null) {
   const valide = (serie || []).filter((s) => (
-    s && s.monitorata === true
+    s && contaNeiCalcoli(s, monitorati)
     && Number.isFinite(s.carico) && s.carico > 0
     && Number.isFinite(s.ripetizioni) && s.ripetizioni > 0
   ));
@@ -237,6 +241,16 @@ export function calcolaIncrementi(serie) {
     : null;
 
   return { esercizi, media, inAttesa: esercizi.filter((e) => e.inAttesa).length };
+}
+
+/**
+ * Una serie entra nei calcoli se il suo piano è monitorato. Il flag sulla serie
+ * vale solo come ripiego: le serie della Fase 1 registrate quando la fase non era
+ * monitorata (fino al 23/09/2026) portano `monitorata: false`, ma contano.
+ */
+export function contaNeiCalcoli(s, monitorati = null) {
+  if (monitorati && s.pianoId && monitorati.has(s.pianoId)) return true;
+  return s.monitorata === true;
 }
 
 /**
@@ -350,7 +364,7 @@ function bloccoPerGruppo(righe, gruppoScelto, onGruppo) {
 function bloccoMedia(media, elenco, st) {
   if (media == null) {
     const pianoMon = elenco.find((p) => p.monitorata);
-    const righe = [h('p.nota', 'I numeri di progresso partono dalla Fase 2.')];
+    const righe = [h('p.nota', 'La percentuale compare dalla seconda volta che registri un esercizio.')];
     if (pianoMon && !(st.riferimento && st.riferimento.monitorata)) {
       righe.push(h('p.nota', `Comincia alla settimana ${pianoMon.settimanaDa}.`));
     }
@@ -358,7 +372,7 @@ function bloccoMedia(media, elenco, st) {
   }
   return h('div.blocco.blocco-pieno', [
     h('p.cifra.cifra-xl', percento(media)),
-    h('p.occhiello', { style: 'margin-top:4px' }, "dall'inizio della fase monitorata"),
+    h('p.occhiello', { style: 'margin-top:4px' }, 'dal primo allenamento'),
   ]);
 }
 
@@ -428,7 +442,7 @@ function bloccoPerSeduta(esercizi, nomiSedute) {
 
 /* ---------- vista: dettaglio esercizio ---------------------------- */
 
-function vistaDettaglio(e, serieGrezze, nomiEsercizi, onIndietro, onElimina) {
+function vistaDettaglio(e, serieGrezze, nomiEsercizi, onIndietro, onElimina, conta) {
   const nome = nomiEsercizi.get(e.esercizioId) || e.esercizioId;
 
   const righeIncremento = e.inAttesa
@@ -461,7 +475,7 @@ function vistaDettaglio(e, serieGrezze, nomiEsercizi, onIndietro, onElimina) {
     h('h2.titolo-2', { style: 'margin-top:12px' }, nome),
     blocco,
     graficoSvg(e.punti),
-    storicoEsercizio(e.esercizioId, serieGrezze, onElimina),
+    storicoEsercizio(e.esercizioId, serieGrezze, onElimina, conta),
   ];
 }
 
@@ -509,7 +523,7 @@ function graficoSvg(punti) {
   return h('div', { html: svg });
 }
 
-function storicoEsercizio(esercizioId, serieGrezze, onElimina) {
+function storicoEsercizio(esercizioId, serieGrezze, onElimina, conta) {
   const serieEs = serieGrezze.filter((s) => s.esercizioId === esercizioId);
   const perData = new Map();
   serieEs.forEach((s) => {
@@ -524,12 +538,12 @@ function storicoEsercizio(esercizioId, serieGrezze, onElimina) {
       const voci = [...perData.get(data)].sort((a, b) => (a.indice ?? 0) - (b.indice ?? 0));
       return h('div.pila-s', { style: 'margin-bottom:12px' }, [
         h('p.nota', formattaDataBreve(data)),
-        h('ul.lista', voci.map((s) => h('li', { class: s.monitorata ? null : 'spento' }, [
+        h('ul.lista', voci.map((s) => h('li', { class: conta(s) ? null : 'spento' }, [
           h('span.cresci', [
             h('div', `${peso(s.carico)} × ${s.ripetizioni ?? '–'}`),
             s.note ? h('p.nota', s.note) : null,
           ]),
-          !s.monitorata ? h('span.nota', 'avvicinamento') : null,
+          !conta(s) ? h('span.nota', 'non conteggiata') : null,
           h('button.btn.btn-s.btn-rosso', {
             onclick: () => onElimina(s), 'aria-label': 'Elimina questa serie',
           }, 'Elimina'),

@@ -1,17 +1,33 @@
-/* oggi.js — la schermata d'apertura: cosa alleno, cosa mangio. */
+/* oggi.js — la schermata d'apertura: cosa alleno, cosa mangio.
 
-import { h, dataLunga, iso, daIso } from '../ui.js';
+   La seduta del giorno è quella del calendario, ma non è un obbligo: sotto c'è
+   l'elenco di tutte le sedute del piano, e se ne può fare un'altra — anche in un
+   giorno di riposo. Una sessione aperta oggi vince sul calendario: si torna
+   sulla seduta che si stava facendo. */
+
+import { h, dataLunga, iso, daIso, giorni } from '../ui.js';
 import * as piani from '../piani.js';
 import * as store from '../store.js';
 
 export async function monta(app) {
+  iniettaStile();
   const st = await piani.stato();
   const oggi = new Date();
+
+  const [aperta, fatte] = await Promise.all([
+    store.sessioneAperta(),
+    piani.fatteInSettimana(st.dataInizio, oggi),
+  ]);
+  const sedute = st.piano?.sedute || [];
+  const inCorso = aperta && aperta.data === iso(oggi)
+    ? sedute.find((s) => s.id === aperta.sedutaId) || null
+    : null;
+  const seduta = inCorso || st.seduta;
 
   const testata = h('header.testata', [
     h('div', [
       h('p.occhiello', dataLunga(oggi)),
-      h('h1.titolo', st.seduta ? st.seduta.nome : 'Riposo'),
+      h('h1.titolo', seduta ? seduta.nome : 'Riposo'),
     ]),
     h('a.btn.btn-s', { href: '#/altro', 'aria-label': 'Impostazioni' }, '⚙'),
   ]);
@@ -39,14 +55,22 @@ export async function monta(app) {
 
   /* --- allenamento -------------------------------------- */
 
-  if (st.seduta) {
-    schermata.append(await bloccoSeduta(st));
+  if (seduta) {
+    const gia = fatte.filter((f) => f.sedutaId === seduta.id && f.sessioneId !== aperta?.id);
+    if (gia.length) schermata.append(avvisoGiaFatta(seduta, gia));
+    schermata.append(bloccoSeduta(st, seduta, !!inCorso));
   } else {
     schermata.append(h('div.blocco.blocco-quieto', [
       h('p.occhiello', 'Allenamento'),
       h('p.titolo-2', 'Oggi si riposa.'),
       h('p.nota', prossimaSeduta(st, oggi)),
     ]));
+  }
+
+  if (st.piano) {
+    schermata.append(bloccoSettimana(st, fatte));
+    const altre = sedute.filter((s) => s !== seduta);
+    if (altre.length) schermata.append(sceltaSeduta(altre, fatte, !seduta));
   }
 
   /* --- pasti -------------------------------------------- */
@@ -73,16 +97,15 @@ export async function monta(app) {
 
 /* ---------- pezzi --------------------------------------- */
 
-async function bloccoSeduta(st) {
+function bloccoSeduta(st, seduta, inCorso) {
   const settimana = st.settimanaNellaFase;
-  const aperta = await store.sessioneAperta();
   // Come in scheda.js: un esercizio a 0 serie questa settimana non è ancora
   // entrato nel programma (serieDaSettimana) — qui, riepilogo, si salta.
-  const esercizi = (st.seduta.esercizi || []).filter((e) => piani.serieDi(e, settimana) > 0);
+  const esercizi = (seduta.esercizi || []).filter((e) => piani.serieDi(e, settimana) > 0);
 
   return h('div.blocco.blocco-pieno', [
     h('div.riga-sp', [
-      h('p.occhiello', st.seduta.sottotitolo || 'Allenamento'),
+      h('p.occhiello', seduta.sottotitolo || 'Allenamento'),
       h('p.occhiello', st.settimana
         ? `Sett. ${settimana} di ${st.settimaneFase}`
         : st.riferimento?.nome || ''),
@@ -96,14 +119,67 @@ async function bloccoSeduta(st) {
         ]),
       ]))),
     h('a.btn.btn-primo', {
-      href: `#/sessione/${st.seduta.id}`,
+      href: `#/sessione/${seduta.id}`,
       style: 'background:var(--paper);color:var(--ink);border-color:var(--paper)',
-    }, aperta ? 'Riprendi allenamento' : 'Inizia allenamento'),
-    st.riferimento && !st.riferimento.monitorata
-      ? h('p.nota', { style: 'margin-top:10px;color:inherit;opacity:.7' },
-        'Fase di avvicinamento: i carichi si annotano ma non entrano nei calcoli.')
+    }, inCorso ? 'Riprendi allenamento' : 'Inizia allenamento'),
+  ]);
+}
+
+/** La seduta risulta già fatta questa settimana: lo si dice, non lo si impedisce. */
+function avvisoGiaFatta(seduta, gia) {
+  const quando = gia.map((f) => giornoData(f.data)).join(' e ');
+  return h('div.fascia.fascia-avviso',
+    `${seduta.nome} l’hai già fatto questa settimana (${quando}). `
+    + 'Se lo rifai, si registra come allenamento a parte.');
+}
+
+/** Quanti allenamenti fatti su quanti previsti, e quali. */
+function bloccoSettimana(st, fatte) {
+  const previsti = piani.allenamentiPrevisti(st.piano, st.settimanaNellaFase);
+  const nomi = new Map((st.piano.sedute || []).map((s) => [s.id, s.nome]));
+  const completa = fatte.length >= previsti;
+
+  return h('div.blocco.blocco-quieto', [
+    h('div.riga-sp', [
+      h('p.occhiello', 'Questa settimana'),
+      h('p.occhiello', `${fatte.length} di ${previsti}`),
+    ]),
+    fatte.length
+      ? h('ul.lista', { style: 'margin-top:6px' }, fatte.map((f) => h('li', [
+        h('span.cresci', nomi.get(f.sedutaId) || f.sedutaId),
+        h('span.nota', giornoData(f.data)),
+      ])))
+      : h('p.nota', { style: 'margin-top:6px' }, 'Nessun allenamento registrato.'),
+    completa
+      ? h('p.nota', { style: 'margin-top:8px' },
+        `Hai già fatto ${previsti === 1 ? 'l’allenamento previsto' : `i ${previsti} allenamenti previsti`}.`)
       : null,
   ]);
+}
+
+/** Tutte le altre sedute del piano, da fare quando si vuole. */
+function sceltaSeduta(sedute, fatte, riposo) {
+  return h('div.blocco', [
+    h('p.occhiello', riposo ? 'Allenati lo stesso' : 'Fai un altro allenamento'),
+    h('ul.lista', { style: 'margin-top:4px' }, sedute.map((s) => {
+      const gia = fatte.filter((f) => f.sedutaId === s.id);
+      return h('li', [h('a.ogg-riga', { href: `#/sessione/${s.id}` }, [
+        h('span.cresci', [
+          h('div', s.nome),
+          s.sottotitolo ? h('p.nota', s.sottotitolo) : null,
+        ]),
+        gia.length
+          ? h('span.nota', `fatto ${gia.map((f) => giornoData(f.data)).join(', ')}`)
+          : h('span.nota', '›'),
+      ])]);
+    })),
+  ]);
+}
+
+/** 'lunedì 21' */
+function giornoData(dataIso) {
+  const d = daIso(dataIso);
+  return `${giorni[d.getDay()]} ${d.getDate()}`;
 }
 
 function bloccoPasto(quale, pasto) {
@@ -160,4 +236,22 @@ async function avvisoBackup(dove) {
     ultimo ? `Ultimo backup ${giorni} giorni fa. ` : 'Non hai mai fatto un backup. ',
     h('a', { href: '#/altro', style: 'color:inherit' }, 'Fallo ora →'),
   ]));
+}
+
+/* ---------- stile locale --------------------------------- */
+/* app.css non si tocca: quel che manca vive qui, con classi ogg-. */
+
+const STILE = `
+.ogg-riga {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; min-height: var(--tap); text-decoration: none; color: inherit;
+}
+`;
+
+function iniettaStile() {
+  if (document.getElementById('stile-oggi')) return;
+  const s = document.createElement('style');
+  s.id = 'stile-oggi';
+  s.textContent = STILE;
+  document.head.append(s);
 }

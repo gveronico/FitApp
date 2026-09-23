@@ -1,16 +1,17 @@
 {
   "id": "2026-fase1",
   "nome": "Fase 1 — Avvicinamento",
-  "fonte": "ALLENAMENTO.md v4.0",
+  "fonte": "ALLENAMENTO.md v5.0",
   "settimane": 6,
-  "monitorata": false,
+  "monitorata": true,
   "regole": [
     "Tre serie per esercizio: 12, 10, 8 ripetizioni. La serie da 12 serve a scaldare il movimento, la serie da 8 è quella che conta.",
     "Si sale di carico a ogni serie: la 12 leggera, la 10 un gradino sopra, la 8 la più pesante che resta pulita.",
-    "Settimane 1-3: ci si ferma 3-4 ripetizioni prima del cedimento. Se una serie è dura, il carico è sbagliato.",
-    "Settimane 4-6: si calibra il carico vero sulla serie da 8. È quello che si porta in Fase 2.",
+    "Settimane 1-2: due allenamenti a settimana, scelti tra i quattro. Dalla settimana 3: quattro.",
+    "Le sei settimane sono uguali: stessi esercizi dalla prima all’ultima.",
+    "Nelle prime due settimane ci si ferma 3-4 ripetizioni prima del cedimento. Poi si cerca il carico vero sulla serie da 8, e si prova a salire di settimana in settimana.",
     "Recuperi: 90\" sui primi due esercizi, 60\" sugli altri.",
-    "Il carico della serie da 8 dell'ultima settimana è il punto di partenza della Fase 2."
+    "I carichi entrano nei calcoli dei progressi dal primo allenamento."
   ],
   "progressione": null,
   "sedute": [
@@ -42,9 +43,9 @@
           "note": ""
         },
         {
-          "id": "lat-machine-triangolo",
-          "nome": "Lat machine con triangolo",
-          "gruppo": "dorso",
+          "id": "croci-panca-piana",
+          "nome": "Croci su panca piana con manubri",
+          "gruppo": "petto-spalle",
           "serie": 3,
           "rip": "12-10-8",
           "ripSerie": [12, 10, 8],
@@ -56,9 +57,9 @@
           "note": ""
         },
         {
-          "id": "croci-panca-piana",
-          "nome": "Croci su panca piana con manubri",
-          "gruppo": "petto-spalle",
+          "id": "lat-machine-triangolo",
+          "nome": "Lat machine con triangolo",
+          "gruppo": "dorso",
           "serie": 3,
           "rip": "12-10-8",
           "ripSerie": [12, 10, 8],
@@ -113,8 +114,8 @@
       },
       "esercizi": [
         {
-          "id": "goblet-squat-manubrio",
-          "nome": "Goblet squat con manubrio",
+          "id": "squat-bilanciere",
+          "nome": "Squat con bilanciere",
           "gruppo": "gambe",
           "serie": 3,
           "rip": "12-10-8",
@@ -124,7 +125,8 @@
           "recuperoSec": 90,
           "carico": "esterno",
           "superserie": null,
-          "note": "Dalla settimana 4, chi se la sente passa a squat al multipower o squat con bilanciere scarico, stesse ripetizioni."
+          "note": "",
+          "varianteFacile": "Goblet squat, squat al multipower, box squat"
         },
         {
           "id": "stacco-rumeno-manubri",
@@ -198,8 +200,8 @@
       },
       "esercizi": [
         {
-          "id": "trazioni-assistite",
-          "nome": "Trazioni assistite alla macchina",
+          "id": "lat-machine-presa-larga",
+          "nome": "Lat machine presa larga",
           "gruppo": "dorso",
           "serie": 3,
           "rip": "12-10-8",
@@ -207,9 +209,9 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 90,
-          "carico": "assistito",
+          "carico": "esterno",
           "superserie": null,
-          "note": "In alternativa: lat machine presa larga."
+          "note": ""
         },
         {
           "id": "rematore-manubri",
@@ -299,29 +301,14 @@
           "id": "stacco-rialzo-bilanciere",
           "nome": "Stacco da rialzo con bilanciere",
           "gruppo": "gambe",
-          "serie": 0,
-          "serieDaSettimana": { "4": 3 },
+          "serie": 3,
           "rip": "8",
           "ripMin": 8,
           "ripMax": 8,
           "recuperoSec": 90,
           "carico": "esterno",
           "superserie": null,
-          "note": "Entra dalla settimana 4, prima dell'hip thrust. Carico leggero e fisso sulle 8: serve solo a imparare il movimento in vista della Fase 2."
-        },
-        {
-          "id": "hip-thrust-bilanciere",
-          "nome": "Hip thrust con bilanciere",
-          "gruppo": "gambe",
-          "serie": 3,
-          "rip": "12-10-8",
-          "ripSerie": [12, 10, 8],
-          "ripMin": 8,
-          "ripMax": 12,
-          "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
-          "note": ""
+          "note": "Carico leggero e ripetizioni fisse sulle 8: serve a imparare il movimento in vista dello stacco da terra della Fase 2."
         },
         {
           "id": "affondi-indietro-manubri",
@@ -381,5 +368,6 @@
         }
       ]
     }
-  ]
+  ],
+  "allenamentiDaSettimana": { "1": 2, "3": 4 }
 }

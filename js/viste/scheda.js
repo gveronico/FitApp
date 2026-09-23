@@ -65,7 +65,7 @@ export async function monta(contenitore, parametri) {
 
   /* --- stato del piano e regole ----------------------------- */
 
-  schermata.append(rigaStato(riferimento));
+  schermata.append(rigaStato(riferimento, piano));
 
   const regole = bloccoRegole(piano);
   if (regole) schermata.append(regole);
@@ -132,7 +132,7 @@ export async function monta(contenitore, parametri) {
 
 /* ---------- pezzi --------------------------------------- */
 
-function rigaStato(riferimento) {
+function rigaStato(riferimento, piano) {
   return h('div.blocco.blocco-quieto', [
     h('div.riga-sp', [
       h('p.titolo-2', riferimento.nome),
@@ -140,9 +140,18 @@ function rigaStato(riferimento) {
     ]),
     h('p.nota', { style: 'margin-top:6px' },
       riferimento.monitorata
-        ? 'Fase monitorata: i carichi registrati entrano nei calcoli di progressione.'
+        ? 'I carichi registrati entrano nei calcoli dei progressi.'
         : 'I carichi si annotano ma non entrano nei calcoli.'),
+    piano?.allenamentiDaSettimana
+      ? h('p.nota', { style: 'margin-top:4px' }, testoFrequenza(piano.allenamentiDaSettimana))
+      : null,
   ]);
+}
+
+/** { "1": 2, "3": 4 } -> 'Allenamenti a settimana: 2 dalla settimana 1, 4 dalla 3.' */
+function testoFrequenza(scala) {
+  const voci = Object.entries(scala).sort((a, b) => Number(a[0]) - Number(b[0]));
+  return `Allenamenti a settimana: ${voci.map(([da, n], i) => `${n} dalla ${i ? '' : 'settimana '}${da}`).join(', ')}.`;
 }
 
 function bloccoRegole(piano) {

@@ -228,6 +228,59 @@ await prova('Sessione: le tre serie arrivano già compilate 12, 10, 8', async ()
   assert.deepEqual(carichi, ['50', '50', '50'], 'il carico non viene dall’ultima volta');
 });
 
+await prova('Sessione: sotto la serie c’è l’ultima volta, e salire mostra la differenza', async () => {
+  const app = radice();
+  await sessione.monta(app, ['upper-a']);
+  const prime = tutti(app, (n) => n.classList && n.classList.contains('ses-prima'));
+  assert.equal(prime.length, 3, 'manca il riferimento sotto le serie');
+  assert.equal(prime[0].textContent, 'ultima volta 50 kg × 8');
+
+  // Si alza il carico della prima serie a 52,5 dal tastierino.
+  const campi = tutti(app, (n) => n.classList && n.classList.contains('ses-campo'));
+  await campi[0].scatena('click');
+  const tasti = new Map(tutti(app, (n) => n.classList && n.classList.contains('ses-tasto'))
+    .map((n) => [n.textContent, n]));
+  for (const t of ['⌫', '⌫', '5', '2', ',', '5']) await tasti.get(t).scatena('click');
+  assert.equal(campi[0].textContent, '52,5');
+  assert.equal(prime[0].textContent, 'ultima volta 50 kg × 8 · +2,5 kg');
+  assert.ok(prime[0].classList.contains('verde'));
+});
+
+const piani = await import(`${MOD}piani.js`);
+const { iso } = await import(`${MOD}ui.js`);
+
+await prova('Oggi: tutte le sedute si possono scegliere, qualunque sia il giorno', async () => {
+  const app = radice();
+  await oggi.monta(app);
+  const link = tutti(app, (n) => n.tagName === 'A' && String(n.getAttribute('href')).startsWith('#/sessione/'))
+    .map((n) => n.getAttribute('href').replace('#/sessione/', ''));
+  ['upper-a', 'lower-a', 'upper-b', 'lower-b'].forEach((id) => {
+    assert.ok(link.includes(id), `manca la scelta di ${id}: ${link}`);
+  });
+  assert.ok(app.textContent.includes('Questa settimana'));
+});
+
+await prova('Oggi e Sessione: una seduta già fatta questa settimana si segnala', async () => {
+  await store.salvaSerie({
+    id: 'ser-lb', sessioneId: 'ses-lb', data: iso(), pianoId: '2026-fase1', sedutaId: 'lower-b',
+    esercizioId: 'leg-curl', indice: 0, carico: 30, ripetizioni: 12, monitorata: true, note: '',
+  });
+  const st = await piani.stato();
+  const previsti = piani.allenamentiPrevisti(st.piano, st.settimanaNellaFase);
+
+  const app = radice();
+  await oggi.monta(app);
+  const testo = app.textContent;
+  assert.ok(testo.includes(`1 di ${previsti}`), `conteggio della settimana sbagliato: ${testo}`);
+  assert.ok(/fatto (lunedì|martedì|mercoledì|giovedì|venerdì|sabato|domenica)/.test(testo),
+    'la seduta fatta non è segnata nell’elenco');
+
+  const ses = radice();
+  await sessione.monta(ses, ['lower-b']);
+  assert.ok(ses.textContent.includes('Lower B l’hai già fatto questa settimana'),
+    'la sessione non avvisa che Lower B è già stato fatto');
+});
+
 console.log(`\n${fatte} prove di vista passate.`);
 
 // Il cronometro della sessione lascia acceso un setInterval: si chiude a mano.

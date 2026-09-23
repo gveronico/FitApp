@@ -130,16 +130,67 @@ export async function stato(quando = new Date()) {
   };
 }
 
-/** Serie effettive di un esercizio nella settimana data (gestisce serieDaSettimana). */
-export function serieDi(esercizio, settimanaNellaFase) {
-  let n = esercizio.serie;
-  const scala = esercizio.serieDaSettimana;
+/** Il valore in vigore in una settimana, da una scala { "<da settimana>": valore }. */
+function daScala(base, scala, settimanaNellaFase) {
+  let n = base;
   if (scala && settimanaNellaFase) {
-    for (const [da, valore] of Object.entries(scala)) {
+    const voci = Object.entries(scala).sort((a, b) => Number(a[0]) - Number(b[0]));
+    for (const [da, valore] of voci) {
       if (settimanaNellaFase >= Number(da)) n = valore;
     }
   }
   return n;
+}
+
+/** Serie effettive di un esercizio nella settimana data (gestisce serieDaSettimana). */
+export function serieDi(esercizio, settimanaNellaFase) {
+  return daScala(esercizio.serie, esercizio.serieDaSettimana, settimanaNellaFase);
+}
+
+/** Quanti allenamenti prevede la settimana: `allenamentiDaSettimana` se c'è,
+    altrimenti uno per seduta. */
+export function allenamentiPrevisti(piano, settimanaNellaFase) {
+  const base = (piano?.sedute || []).length;
+  return daScala(base, piano?.allenamentiDaSettimana, settimanaNellaFase || 1);
+}
+
+/**
+ * Primo giorno della settimana in corso, 'YYYY-MM-DD'.
+ * Con la data di inizio è la settimana del programma (blocchi di 7 giorni da lì),
+ * senza è la settimana del calendario, da lunedì.
+ */
+export function inizioSettimana(dataInizio, quando = new Date()) {
+  const n = settimanaAl(dataInizio, quando);
+  const d = n != null ? daIso(dataInizio) : daIso(iso(quando));
+  if (n != null) d.setDate(d.getDate() + (n - 1) * 7);
+  else d.setDate(d.getDate() - (giornoIso(d) - 1));
+  return iso(d);
+}
+
+/**
+ * Gli allenamenti fatti nella settimana in corso, dal più vecchio.
+ * Conta una sessione solo se ha almeno una serie registrata: aprire una seduta
+ * per sbaglio e uscire non vale come allenamento.
+ *   [{ sessioneId, sedutaId, data }]
+ * `escludi` toglie una sessione, di solito quella aperta a schermo.
+ */
+export async function fatteInSettimana(dataInizio, quando = new Date(), escludi = null) {
+  const da = inizioSettimana(dataInizio, quando);
+  const a = iso(quando);
+  const per = new Map();
+  (await store.tutteLeSerie()).forEach((s) => {
+    if (!s.sessioneId || s.sessioneId === escludi || s.data < da || s.data > a) return;
+    if (!per.has(s.sessioneId)) per.set(s.sessioneId, { sessioneId: s.sessioneId, sedutaId: s.sedutaId, data: s.data });
+  });
+  return [...per.values()].sort((x, y) => (x.data < y.data ? -1 : x.data > y.data ? 1 : 0));
+}
+
+/** Gli id dei piani i cui carichi entrano nei calcoli. Decide il piano, non la
+    serie: così le serie registrate prima che una fase diventasse monitorata
+    contano lo stesso. */
+export async function pianiMonitorati() {
+  const idx = await indice();
+  return new Set(idx.allenamento.filter((r) => r.monitorata).map((r) => r.id));
 }
 
 /**

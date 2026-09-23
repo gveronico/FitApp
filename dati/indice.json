@@ -1,6 +1,6 @@
 {
   "versione": 1,
-  "aggiornato": "2026-09-21",
+  "aggiornato": "2026-09-23",
   "allenamento": [
     {
       "id": "2026-fase1",
@@ -8,7 +8,7 @@
       "nome": "Fase 1 — Avvicinamento",
       "settimanaDa": 1,
       "settimanaA": 6,
-      "monitorata": false
+      "monitorata": true
     },
     {
       "id": "2026-fase2",

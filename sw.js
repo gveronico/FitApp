@@ -9,7 +9,7 @@
    Cambiando i file dell'app va alzato VERSIONE: è l'unica manutenzione
    che questo file richiede. */
 
-const VERSIONE = 'fitapp-v2';
+const VERSIONE = 'fitapp-v3';
 const GUSCIO = `${VERSIONE}-guscio`;
 const DATI = `${VERSIONE}-dati`;
 

@@ -28,7 +28,10 @@ dalla `dataInizio` impostata dall'utente e sceglie il piano il cui intervallo la
   "nome": "Fase 1 — Avvicinamento",
   "fonte": "ALLENAMENTO.md v3.0",
   "settimane": 4,
-  "monitorata": false,        // false = i carichi si registrano ma non entrano nei calcoli
+  "monitorata": true,         // false = i carichi si registrano ma non entrano nei calcoli.
+                              // Lo decide il piano, non la serie: se una fase diventa
+                              // monitorata, anche le serie già registrate contano
+  "allenamentiDaSettimana": { "1": 2, "3": 4 },  // facoltativo, vedi sotto
   "regole": [                 // mostrate in cima alla scheda, testo libero
     "Ci si ferma 4 ripetizioni prima del cedimento nelle settimane 1-2, 3 nelle 3-4."
   ],
@@ -123,8 +126,16 @@ confrontabile: l'`id` non si duplica e non si rinomina.
 Non c'è un campo dedicato. Si aggiunge come esercizio normale nella posizione giusta,
 con `"serie": 0` e `"serieDaSettimana": { "<settimana>": <valore> }` (0 serie finché non
 si arriva a quella settimana, poi il valore indicato), spiegando in `note` da quale
-settimana entra e perché. Esempio: Fase 1, venerdì, "stacco da rialzo con bilanciere"
-entra dalla settimana 3 con `"serie": 0, "serieDaSettimana": { "3": 2 }`.
+settimana entra e perché. Esempio (non più in uso dalla Fase 1 v5.0): un esercizio
+che entra dalla settimana 3 si scrive `"serie": 0, "serieDaSettimana": { "3": 2 }`.
+
+### `allenamentiDaSettimana` — quanti allenamenti a settimana
+
+Facoltativo. Stessa forma di `serieDaSettimana`: `{ "1": 2, "3": 4 }` vuol dire due
+allenamenti nelle settimane 1-2 e quattro dalla 3. Assente = uno per seduta.
+Non vincola niente: in Oggi fa solo il conto "fatti 1 di 2" della settimana. Quali
+sedute fare lo sceglie l'utente — in Oggi ogni seduta del piano si può avviare in
+qualsiasi giorno, e quella già fatta nella settimana viene segnalata.
 
 ### `progressione`
 
