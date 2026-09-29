@@ -7,6 +7,13 @@
      serie         { id, ... }          una per serie registrata
      foto          { id, ... }          una per scatto, con il blob dentro
      spunte        { id, spuntato }     spesa e preparazione della domenica
+
+   Due persone, un telefono (dal 29/09/2026). Giuseppe e Corinna si allenano
+   insieme e registra tutto Giuseppe: sessioni, serie e foto portano `persona`.
+   Chi legge senza dire di chi vuole i dati riceve quelli della persona in
+   vista (Progressi, Foto); `TUTTE` li dà tutti, e serve al backup.
+   Un record senza `persona` è di prima: appartiene al proprietario del
+   telefono (`profilo`). `migra()` lo scrive una volta per tutte.
 */
 
 const DB_NOME = 'fitapp';
@@ -65,11 +72,88 @@ export function nuovoId(prefisso = 'x') {
   return `${prefisso}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+/* ---------- persone -------------------------------------- */
+
+export const PERSONE = ['giuseppe', 'corinna'];
+
+/** Da passare a chi legge per avere i dati di tutte e due. */
+export const TUTTE = '*';
+
+export function nomePersona(chi) {
+  if (chi === 'corinna') return 'Corinna';
+  if (chi === 'giuseppe') return 'Giuseppe';
+  return 'Nessuno';
+}
+
+/** Di chi sono i dati mostrati in Progressi e Foto. */
+export async function personaVista() {
+  const [vista, profilo] = await Promise.all([leggi('personaVista'), leggi('profilo')]);
+  if (PERSONE.includes(vista)) return vista;
+  return PERSONE.includes(profilo) ? profilo : PERSONE[0];
+}
+
+/** Chi si allena la prossima volta: tutte e due, salvo scelta diversa in Oggi. */
+export async function partecipanti() {
+  const v = await leggi('partecipanti');
+  const scelti = Array.isArray(v) ? PERSONE.filter((p) => v.includes(p)) : [];
+  return scelti.length ? scelti : [...PERSONE];
+}
+
+/**
+ * Il filtro per persona: null vuol dire "tutto". Senza persona si usa quella
+ * in vista. Un record senza `persona` è del proprietario del telefono; se
+ * nemmeno quello è noto, va bene per chiunque.
+ */
+async function filtroPersona(persona) {
+  if (persona === TUTTE) return null;
+  const [chi, profilo] = await Promise.all([persona || personaVista(), leggi('profilo')]);
+  return (x) => (x.persona || profilo || chi) === chi;
+}
+
+async function filtra(elenco, persona) {
+  const ok = await filtroPersona(persona);
+  return ok ? elenco.filter(ok) : elenco;
+}
+
+/** Peso corporeo di una persona. Prima del 29/09/2026 ce n'era uno solo,
+    `pesoCorporeo`: era del proprietario del telefono. */
+export async function pesoDi(persona) {
+  const v = await leggi(`peso:${persona}`);
+  if (v != null) return v;
+  const profilo = await leggi('profilo');
+  return !profilo || profilo === persona ? leggi('pesoCorporeo') : null;
+}
+
+export async function scriviPeso(persona, kg) {
+  await scrivi(`peso:${persona}`, kg);
+  if (persona === (await leggi('profilo'))) await cancella('pesoCorporeo');
+  return kg;
+}
+
+/** Una volta sola: i dati di prima diventano del proprietario del telefono. */
+export async function migra() {
+  if ((await leggi('versioneDati')) >= 2) return;
+  const profilo = await leggi('profilo');
+  if (!PERSONE.includes(profilo)) return;          // primo avvio: non c'è niente da migrare
+  for (const nome of ['sessioni', 'serie', 'foto']) {
+    const s = await tx(nome, 'readwrite');
+    const tutti = await attesa(s.getAll());
+    await Promise.all(tutti.filter((x) => !x.persona)
+      .map((x) => attesa(s.put({ ...x, persona: profilo }))));
+  }
+  const vecchio = await leggi('pesoCorporeo');
+  if (vecchio != null && (await leggi(`peso:${profilo}`)) == null) await scrivi(`peso:${profilo}`, vecchio);
+  await cancella('pesoCorporeo');
+  await scrivi('versioneDati', 2);
+}
+
 /* ---------- impostazioni -------------------------------- */
 
 const PREDEFINITE = {
-  profilo: null,          // 'giuseppe' | 'corinna' — scelto al primo avvio
-  pesoCorporeo: null,     // kg, serve solo al calcolo delle trazioni
+  profilo: null,          // 'giuseppe' | 'corinna' — di chi è il telefono, scelto al primo avvio
+  personaVista: null,     // di chi sono Progressi e Foto; null = il proprietario
+  partecipanti: null,     // chi si allena: ['giuseppe','corinna']; null = tutti e due
+  pesoCorporeo: null,     // kg, di prima del 29/09/2026: ora è `peso:<persona>`, vedi pesoDi()
   tema: 'auto',           // 'auto' | 'chiaro' | 'scuro'
   dataInizio: null,       // 'YYYY-MM-DD' del primo allenamento della settimana 1
   pianoAttivo: null,      // id del piano scelto a mano; se null lo calcola la data
@@ -108,9 +192,10 @@ export async function cancella(chiave) {
 
 /**
  * sessione = {
- *   id, data:'YYYY-MM-DD', iniziata:ms, finita:ms|null, durataSec:int|null,
+ *   id, persona, data:'YYYY-MM-DD', iniziata:ms, finita:ms|null, durataSec:int|null,
  *   pianoId, sedutaId, monitorata:bool
  * }
+ * Allenandosi in due ci sono due sessioni, una a testa, aperte insieme.
  */
 export async function salvaSessione(sessione) {
   const s = await tx('sessioni', 'readwrite');
@@ -123,23 +208,32 @@ export async function leggiSessione(id) {
   return attesa(s.get(id));
 }
 
-export async function sessioni() {
+export async function sessioni(persona) {
   const s = await tx('sessioni');
-  const tutte = await attesa(s.getAll());
+  const tutte = await filtra(await attesa(s.getAll()), persona);
   return tutte.sort((a, b) => (a.data < b.data ? 1 : -1));
 }
 
 /** L'ultima sessione non ancora chiusa, se esiste. */
-export async function sessioneAperta() {
-  const tutte = await sessioni();
+export async function sessioneAperta(persona) {
+  const tutte = await sessioni(persona);
   return tutte.find((s) => !s.finita) || null;
+}
+
+/** Toglie una sessione e tutte le sue serie: l'allenamento non è mai esistito. */
+export async function eliminaSessione(id) {
+  const serie = await serieDiSessione(id);
+  const st = await tx('serie', 'readwrite');
+  await Promise.all(serie.map((x) => attesa(st.delete(x.id))));
+  const ss = await tx('sessioni', 'readwrite');
+  await attesa(ss.delete(id));
 }
 
 /* ---------- serie --------------------------------------- */
 
 /**
  * serie = {
- *   id, sessioneId, data:'YYYY-MM-DD', pianoId, sedutaId, esercizioId,
+ *   id, persona, sessioneId, data:'YYYY-MM-DD', pianoId, sedutaId, esercizioId,
  *   indice:int (0-based), carico:number|null, ripetizioni:int|null,
  *   monitorata:bool, note:string
  * }
@@ -164,15 +258,15 @@ export async function serieDiSessione(sessioneId) {
   return out.sort((a, b) => a.indice - b.indice);
 }
 
-export async function serieDiEsercizio(esercizioId) {
+export async function serieDiEsercizio(esercizioId, persona) {
   const s = await tx('serie');
-  const out = await attesa(s.index('esercizioId').getAll(esercizioId));
+  const out = await filtra(await attesa(s.index('esercizioId').getAll(esercizioId)), persona);
   return out.sort((a, b) => (a.data === b.data ? a.indice - b.indice : a.data < b.data ? -1 : 1));
 }
 
-export async function tutteLeSerie() {
+export async function tutteLeSerie(persona) {
   const s = await tx('serie');
-  return attesa(s.getAll());
+  return filtra(await attesa(s.getAll()), persona);
 }
 
 export async function eliminaSerie(id) {
@@ -182,21 +276,21 @@ export async function eliminaSerie(id) {
 
 /* ---------- foto ---------------------------------------- */
 
-/** foto = { id, mese:'YYYY-MM', posa:'fronte'|'lato'|'retro', blob, creata:ms } */
+/** foto = { id, persona, mese:'YYYY-MM', posa:'fronte'|'lato'|'retro', blob, creata:ms } */
 export async function salvaFoto(foto) {
   const s = await tx('foto', 'readwrite');
   await attesa(s.put(foto));
   return foto;
 }
 
-export async function fotoDelMese(mese) {
+export async function fotoDelMese(mese, persona) {
   const s = await tx('foto');
-  return attesa(s.index('mese').getAll(mese));
+  return filtra(await attesa(s.index('mese').getAll(mese)), persona);
 }
 
-export async function tutteLeFoto() {
+export async function tutteLeFoto(persona) {
   const s = await tx('foto');
-  const out = await attesa(s.getAll());
+  const out = await filtra(await attesa(s.getAll()), persona);
   return out.sort((a, b) => (a.mese === b.mese ? a.creata - b.creata : a.mese < b.mese ? 1 : -1));
 }
 
@@ -207,7 +301,7 @@ export async function eliminaFoto(id) {
 
 /* ---------- spunte (spesa, preparazione) ---------------- */
 
-/** id convenzionale: 'spesa:A:Zucchine' · 'domenica:uova' */
+/** id convenzionale: 'spesa:zucchine' · 'domenica:uova' */
 export async function spunte(prefisso = '') {
   const s = await tx('spunte');
   const tutte = await attesa(s.getAll());
@@ -233,7 +327,7 @@ export async function azzeraSpunte(prefisso) {
 
 export async function esportaTutto() {
   const [imp, ses, ser, spu] = await Promise.all([
-    leggiTutte(), sessioni(), tutteLeSerie(), spunte(),
+    leggiTutte(), sessioni(TUTTE), tutteLeSerie(TUTTE), spunte(),
   ]);
   return { impostazioni: imp, sessioni: ses, serie: ser, spunte: spu };
 }

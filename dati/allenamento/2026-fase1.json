@@ -17,7 +17,6 @@
   "sedute": [
     {
       "id": "upper-a",
-      "giorno": 1,
       "nome": "Upper A",
       "sottotitolo": "Petto, dorso, tricipiti",
       "riscaldamento": {
@@ -102,7 +101,6 @@
     },
     {
       "id": "lower-a",
-      "giorno": 2,
       "nome": "Lower A",
       "sottotitolo": "Quadricipiti, spalle, addome",
       "riscaldamento": {
@@ -188,7 +186,6 @@
     },
     {
       "id": "upper-b",
-      "giorno": 4,
       "nome": "Upper B",
       "sottotitolo": "Dorso, petto, bicipiti, deltoide posteriore, addome",
       "riscaldamento": {
@@ -286,7 +283,6 @@
     },
     {
       "id": "lower-b",
-      "giorno": 5,
       "nome": "Lower B",
       "sottotitolo": "Catena posteriore, spalle, polpacci",
       "riscaldamento": {

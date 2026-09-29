@@ -1,16 +1,25 @@
 /* personalizza.js — le modifiche che si fanno dall'app, sopra ai piani.
 
    I file in dati/ restano di sola lettura: li scrive Claude. Qui sopra c'è uno
-   strato sottile di sovrascritture — un nome cambiato, una voce tolta, una voce
-   spostata da una lista della spesa all'altra — che vive in IndexedDB insieme a
+   strato sottile di sovrascritture — un nome cambiato, un alimento acceso o
+   spento, una voce della spesa in un altro reparto — che vive in IndexedDB insieme a
    tutto il resto: entra nel backup e resta sul telefono di chi l'ha fatta.
 
    Chiavi, tutte nell'archivio `impostazioni`, tutte con prefisso `pz:`
-     pz:esercizio:<idEsercizio>               { nome }
-     pz:pasto:<idPiano>:<giorno>:<quale>      { nome, testo }
-     pz:colazione:<idPiano>:<slug>            { nome, testo, nascosto }
-     pz:spuntino:<idPiano>:<slug>             { testo, nascosto }
-     pz:spesa:<idLista>:<voce>                { testo, lista, nascosto }
+     pz:esercizio:<idEsercizio>                  { nome, gruppo }
+     pz:pasto:<idPiano>:<giorno>:<quale>         { nome, testo, ingredienti, scelta, nota }
+     pz:alimenti:<idPiano>:<colazione|spuntino>  { ingredienti, scelta }
+     pz:spesa:<slug>                             { reparto, nascosto }
+     pz:spesa:+<id>                              { testo, reparto }   aggiunta dall'app
+
+   `ingredienti` è l'elenco intero quando è diverso da quello del piano;
+   `scelta` è { <slug>: true|false } per gli alimenti accesi o spenti a mano.
+   La spesa non ha voci sue: la compone spesa.js da quello che è acceso qui.
+
+   Nome e gruppo di un esercizio stanno qui, legati all'id, e valgono in ogni
+   piano: il gruppo è quello su cui si sommano i progressi, e deve restare lo
+   stesso da una scheda all'altra. Serie, ripetizioni e il resto stanno nel
+   piano (piani.js, copie sul telefono).
 
    Due scelte da sapere:
 
@@ -25,6 +34,10 @@ import * as store from './store.js';
 
 const PREFISSO = 'pz:';
 
+/** Chiavi di prima del 29/09/2026 (colazioni e spuntini come ricette, spesa in
+    due liste): non corrispondono più a niente e non si contano. */
+const OBSOLETE = /^pz:(colazione\+?|spuntino\+?):|^pz:spesa:[AB]:/;
+
 /** chiave -> valore. Si popola con carica() e si tiene allineata a mano. */
 let cache = new Map();
 let caricata = false;
@@ -37,7 +50,7 @@ export async function carica(forza = false) {
   const tutte = await store.leggiTutte();
   const nuova = new Map();
   for (const [k, v] of Object.entries(tutte)) {
-    if (k.startsWith(PREFISSO) && v && typeof v === 'object') nuova.set(k, v);
+    if (k.startsWith(PREFISSO) && v && typeof v === 'object' && !OBSOLETE.test(k)) nuova.set(k, v);
   }
   cache = nuova;
   caricata = true;
@@ -67,11 +80,85 @@ function ripulisci(valore) {
   const out = {};
   for (const [k, v] of Object.entries(valore)) {
     if (v == null || v === false || v === '') continue;
+    if (Array.isArray(v)) {
+      const voci = v.map((x) => String(x).trim()).filter(Boolean);
+      if (voci.length) out[k] = voci;
+      continue;
+    }
+    if (typeof v === 'object' && !Object.keys(v).length) continue;
     out[k] = typeof v === 'string' ? v.trim() : v;
     if (out[k] === '') delete out[k];
   }
   return Object.keys(out).length ? out : null;
 }
+
+/** Le chiavi che cominciano così, in ordine: gli id nuovi sono ordinati nel tempo. */
+export function conPrefisso(prefisso) {
+  return [...cache.keys()].filter((k) => k.startsWith(prefisso)).sort();
+}
+
+/* ---------- righe aggiunte dall'app --------------------- */
+
+/** Una voce nuova nella spesa, fuori dalla dieta. `reparto` è il nome di un reparto. */
+export async function aggiungiVoceSpesa({ testo, reparto }) {
+  return scrivi(`${PREFISSO}spesa:+${store.nuovoId('v')}`, { testo, reparto });
+}
+
+/* ---------- alimenti: accesi, spenti, aggiunti, tolti ----- */
+
+/**
+ * Gli alimenti di un pasto, della colazione o degli spuntini, come stanno ora:
+ * [{ nome, scelto, predefinito }]. `originali` e `spenti` vengono dal piano.
+ * Un alimento acceso finisce nella spesa; uno spento resta lì, pronto.
+ */
+export function alimenti(chiave, originali = [], spenti = []) {
+  const pz = leggi(chiave) || {};
+  const elenco = pz.ingredienti || originali;
+  const scelta = pz.scelta || {};
+  const spentiPiano = new Set(spenti.map(slug));
+  return elenco.map((nome) => {
+    const s = slug(nome);
+    const predefinito = !spentiPiano.has(s);
+    return { nome, scelto: s in scelta ? !!scelta[s] : predefinito, predefinito };
+  });
+}
+
+/** Accende o spegne un alimento. Tornato com'era nel piano, la scelta si toglie. */
+export async function scegliAlimento(chiave, nome, acceso, predefinito = true) {
+  const pz = leggi(chiave) || {};
+  const scelta = { ...(pz.scelta || {}) };
+  const s = slug(nome);
+  if (acceso === predefinito) delete scelta[s];
+  else scelta[s] = acceso;
+  return scrivi(chiave, { ...pz, scelta });
+}
+
+/** Aggiunge un alimento, acceso. Se c'è già si riaccende e basta. */
+export async function aggiungiAlimento(chiave, nome, originali = [], spenti = []) {
+  const pz = leggi(chiave) || {};
+  const t = String(nome).trim();
+  if (!t) return pz;
+  const elenco = pz.ingredienti || originali;
+  const s = slug(t);
+  const nuovo = elenco.some((x) => slug(x) === s) ? elenco : [...elenco, t];
+  const scelta = { ...(pz.scelta || {}) };
+  // Acceso è il suo stato naturale, tranne per chi nel piano parte spento.
+  if (spenti.map(slug).includes(s)) scelta[s] = true;
+  else delete scelta[s];
+  return scrivi(chiave, { ...pz, ingredienti: stessoElenco(nuovo, originali) ? null : nuovo, scelta });
+}
+
+/** Toglie un alimento dall'elenco, e con lui la sua scelta. */
+export async function togliAlimento(chiave, nome, originali = []) {
+  const pz = leggi(chiave) || {};
+  const s = slug(nome);
+  const nuovo = (pz.ingredienti || originali).filter((x) => slug(x) !== s);
+  const scelta = { ...(pz.scelta || {}) };
+  delete scelta[s];
+  return scrivi(chiave, { ...pz, ingredienti: stessoElenco(nuovo, originali) ? null : nuovo, scelta });
+}
+
+const stessoElenco = (a, b) => a.map(slug).join('|') === b.map(slug).join('|');
 
 /** Quante ce ne sono, per dirlo in Altro. */
 export function quante() {
@@ -100,9 +187,8 @@ export function slug(testo) {
 
 export const chiaveEsercizio = (id) => `${PREFISSO}esercizio:${id}`;
 export const chiavePasto = (idPiano, giorno, quale) => `${PREFISSO}pasto:${idPiano}:${giorno}:${quale}`;
-export const chiaveColazione = (idPiano, testo) => `${PREFISSO}colazione:${idPiano}:${slug(testo)}`;
-export const chiaveSpuntino = (idPiano, testo) => `${PREFISSO}spuntino:${idPiano}:${slug(testo)}`;
-export const chiaveVoceSpesa = (idLista, voce) => `${PREFISSO}spesa:${idLista}:${voce}`;
+export const chiaveAlimenti = (idPiano, quale) => `${PREFISSO}alimenti:${idPiano}:${quale}`;
+export const chiaveVoceSpesa = (testo) => `${PREFISSO}spesa:${slug(testo)}`;
 
 /** La spunta della spesa vive in un altro archivio ma usa la stessa coordinata:
     la chiave della spunta è quella della personalizzazione senza il prefisso. */
@@ -117,12 +203,11 @@ export const spuntaDaChiave = (chiave) => chiave.slice(PREFISSO.length);
 export function applica(dati) {
   if (!dati || typeof dati !== 'object') return dati;
   if (Array.isArray(dati.sedute)) return applicaAllenamento(dati);
-  if (Array.isArray(dati.liste)) return applicaSpesa(dati);
   if (Array.isArray(dati.settimana)) return applicaCibo(dati);
   return dati;
 }
 
-/* --- allenamento: solo il nome dell'esercizio ------------- */
+/* --- allenamento: nome e gruppo dell'esercizio ------------ */
 
 function applicaAllenamento(piano) {
   return {
@@ -131,14 +216,21 @@ function applicaAllenamento(piano) {
       ...seduta,
       esercizi: (seduta.esercizi || []).map((e) => {
         const pz = leggi(chiaveEsercizio(e.id));
-        if (!pz || !pz.nome) return e;
-        return { ...e, nome: pz.nome, nomeOriginale: e.nome, personalizzato: true };
+        if (!pz || (!pz.nome && !pz.gruppo)) return e;
+        return {
+          ...e,
+          nome: pz.nome || e.nome,
+          gruppo: pz.gruppo || e.gruppo,
+          nomeOriginale: e.nome,
+          gruppoOriginale: e.gruppo,
+          personalizzato: true,
+        };
       }),
     })),
   };
 }
 
-/* --- cibo: pasti, colazioni, spuntini --------------------- */
+/* --- cibo: pasti, colazione, spuntini ---------------------- */
 
 function applicaCibo(cibo) {
   const idPiano = cibo.id;
@@ -149,104 +241,42 @@ function applicaCibo(cibo) {
     cena: pastoPersonalizzato(idPiano, g.giorno, 'cena', g.cena),
   }));
 
-  const colazioni = (cibo.colazioni || [])
-    .map((c) => {
-      const chiave = chiaveColazione(idPiano, c.nome || c.testo);
-      const pz = leggi(chiave) || {};
-      return {
-        ...c,
-        chiave,
-        originale: c,
-        nome: pz.nome || c.nome,
-        testo: pz.testo || c.testo,
-        nascosto: !!pz.nascosto,
-        personalizzato: !!(pz.nome || pz.testo),
-      };
-    })
-    .filter((c) => !c.nascosto);
+  const gruppo = (quale) => {
+    const base = cibo[quale];
+    if (!base) return null;
+    const chiave = chiaveAlimenti(idPiano, quale);
+    const originali = base.alimenti || [];
+    const spenti = base.spenti || [];
+    return {
+      ...base, chiave, originali, spenti, alimenti: alimenti(chiave, originali, spenti),
+    };
+  };
 
-  // Gli spuntini nel piano sono stringhe: qui diventano righe con una chiave,
-  // perché senza chiave non si possono né rinominare né togliere.
-  const spuntini = (cibo.spuntini || [])
-    .map((testo) => {
-      const chiave = chiaveSpuntino(idPiano, testo);
-      const pz = leggi(chiave) || {};
-      return {
-        chiave,
-        originale: testo,
-        testo: pz.testo || testo,
-        nascosto: !!pz.nascosto,
-        personalizzato: !!pz.testo,
-      };
-    })
-    .filter((s) => !s.nascosto);
-
-  return { ...cibo, settimana, colazioni, spuntini };
+  return {
+    ...cibo, settimana, colazione: gruppo('colazione'), spuntino: gruppo('spuntino'),
+  };
 }
 
 function pastoPersonalizzato(idPiano, giorno, quale, pasto) {
   if (!pasto) return pasto;
   const chiave = chiavePasto(idPiano, giorno, quale);
   const pz = leggi(chiave) || {};
+  const originali = pasto.ingredienti || [];
+  const spenti = pasto.spenti || [];
+  const elenco = alimenti(chiave, originali, spenti);
   return {
     ...pasto,
     chiave,
     nomeOriginale: pasto.nome,
     testoOriginale: pasto.testo,
+    ingredientiOriginali: originali,
+    notaOriginale: pasto.nota || '',
     nome: pz.nome || pasto.nome,
     testo: pz.testo || pasto.testo,
-    personalizzato: !!(pz.nome || pz.testo),
+    ingredienti: elenco.map((a) => a.nome),
+    alimenti: elenco,
+    spenti,
+    nota: pz.nota || pasto.nota,
+    personalizzato: !!(pz.nome || pz.testo || pz.ingredienti || pz.nota),
   };
-}
-
-/* --- spesa: rinomina, nasconde, sposta di lista ------------ */
-
-/**
- * Le voci diventano oggetti { chiave, originale, testo, listaOrigine, spostata }.
- * `chiave` resta quella della lista di partenza anche dopo lo spostamento: così
- * la spunta già messa non si perde e non si duplica.
- */
-function applicaSpesa(spesa) {
-  const liste = (spesa.liste || []).map((l) => ({
-    ...l,
-    reparti: (l.reparti || []).map((r) => ({ ...r, voci: [] })),
-  }));
-  const perId = new Map(liste.map((l) => [l.id, l]));
-
-  (spesa.liste || []).forEach((lista) => {
-    (lista.reparti || []).forEach((reparto) => {
-      (reparto.voci || []).forEach((voce) => {
-        const chiave = chiaveVoceSpesa(lista.id, voce);
-        const pz = leggi(chiave) || {};
-        if (pz.nascosto) return;
-
-        const destinazioneId = pz.lista && perId.has(pz.lista) ? pz.lista : lista.id;
-        const destinazione = perId.get(destinazioneId);
-        const riga = {
-          chiave,
-          originale: voce,
-          testo: pz.testo || voce,
-          listaOrigine: lista.id,
-          spostata: destinazioneId !== lista.id,
-          personalizzata: !!pz.testo,
-        };
-        repartoDi(destinazione, reparto.nome, reparto.nota).voci.push(riga);
-      });
-    });
-  });
-
-  // Un reparto rimasto senza voci (tutte tolte o spostate) non si mostra.
-  liste.forEach((l) => { l.reparti = l.reparti.filter((r) => r.voci.length); });
-
-  return { ...spesa, liste };
-}
-
-/** Il reparto con quel nome nella lista, creandolo in fondo se non c'è. */
-function repartoDi(lista, nome, nota) {
-  let r = lista.reparti.find((x) => x.nome === nome);
-  if (!r) {
-    r = { nome, nota, voci: [] };
-    lista.reparti.push(r);
-  }
-  return r;
 }

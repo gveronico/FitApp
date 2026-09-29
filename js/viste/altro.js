@@ -1,4 +1,4 @@
-/* altro.js — impostazioni. Chi sei, da quando, che piano, e il backup.
+/* altro.js — impostazioni. Di chi è il telefono, i pesi, da quando, che piano, e il backup.
    È l'unico posto dove si può perdere qualcosa: ogni azione che distrugge
    chiede conferma e dice cosa se ne va. */
 
@@ -9,7 +9,7 @@ import * as backup from '../backup.js';
 import * as personalizza from '../personalizza.js';
 import { applicaTema } from '../app.js';
 
-const VERSIONE_APP = '1.1';
+const VERSIONE_APP = '1.3';
 const GIORNI_BACKUP = 30;
 
 export async function monta(contenitore) {
@@ -29,23 +29,25 @@ export async function monta(contenitore) {
 }
 
 async function disegna(schermata) {
-  const [imp, st, elenco, mb, serie] = await Promise.all([
+  const [imp, st, elenco, mb, serie, ...pesi] = await Promise.all([
     store.leggiTutte(),
     piani.stato(),
     piani.elencoPiani(),
     store.spazio(),
-    store.tutteLeSerie(),
+    store.tutteLeSerie(store.TUTTE),
+    ...store.PERSONE.map((p) => store.pesoDi(p)),
   ]);
   await personalizza.carica(true);
+  const copie = await piani.quanteCopie();
 
   const ridisegna = () => disegna(schermata);
 
   metti(schermata,
     sezioneProfilo(imp, ridisegna),
-    sezionePeso(imp),
+    sezionePeso(pesi),
     sezioneData(imp, st, ridisegna),
     sezionePiano(imp, elenco, ridisegna),
-    sezioneModifiche(personalizza.quante(), ridisegna),
+    sezioneModifiche(personalizza.quante() + copie, ridisegna),
     sezioneBackup(imp, { mb, conDati: serie.length > 0 }),
     sezioneTema(imp, ridisegna),
     sezioneCancella(),
@@ -57,38 +59,50 @@ async function disegna(schermata) {
 
 /* ---------- profilo ------------------------------------- */
 
-function nomeProfilo(chi) {
-  if (chi === 'corinna') return 'Corinna';
-  if (chi === 'giuseppe') return 'Giuseppe';
-  return 'Nessuno';
-}
+const nomeProfilo = store.nomePersona;
 
+/** Di chi è il telefono. Carichi e foto sono di tutti e due, ognuno coi suoi:
+    il proprietario decide solo cosa si vede per primo e il nome del backup. */
 function sezioneProfilo(imp, ridisegna) {
   const cambia = async () => {
-    if (!conferma('Cambio profilo. I dati registrati restano come sono.')) return;
+    if (!conferma('Cambio il proprietario del telefono. I dati di Giuseppe e di Corinna restano di chi sono.')) return;
     await store.scrivi('profilo', imp.profilo === 'corinna' ? 'giuseppe' : 'corinna');
     ridisegna();
   };
 
   return h('div.blocco', [
-    h('p.occhiello', 'Profilo'),
+    h('p.occhiello', 'Telefono di'),
     h('div.riga-sp', [
       h('p.titolo-2', nomeProfilo(imp.profilo)),
-      h('button.btn.btn-s', { onclick: cambia }, 'Cambia profilo'),
+      h('button.btn.btn-s', { onclick: cambia }, 'Cambia'),
     ]),
+    h('p.nota', 'Qui si segnano carichi, progressi e foto di Giuseppe e di Corinna. '
+      + 'Chi si allena si sceglie in Oggi; di chi sono Progressi e Foto, in cima a Progressi.'),
   ]);
 }
 
 /* ---------- peso corporeo -------------------------------- */
 
-function sezionePeso(imp) {
+function sezionePeso(pesi) {
+  return h('div.blocco', [
+    h('p.occhiello', 'Peso corporeo'),
+    ...store.PERSONE.map((p, i) => campoPeso(p, pesi[i])),
+    h('p.nota',
+      'Serve solo a calcolare il carico di trazioni e assistite. '
+      + 'Non viene tracciato nel tempo e non è una misura del piano.'),
+  ]);
+}
+
+function campoPeso(persona, pesoCorporeo) {
+  const imp = { pesoCorporeo };
+  const nome = nomeProfilo(persona);
   const campo = h('input', {
     type: 'number',
     inputmode: 'decimal',
     step: '0.5',
     placeholder: 'kg',
     value: imp.pesoCorporeo == null ? '' : String(imp.pesoCorporeo),
-    'aria-label': 'Peso corporeo in chilogrammi',
+    'aria-label': `Peso corporeo di ${nome} in chilogrammi`,
   });
 
   const avviso = h('div');
@@ -97,7 +111,7 @@ function sezionePeso(imp) {
   const mostraAvviso = (vuoto) => {
     metti(avviso, vuoto
       ? h('div.fascia.fascia-avviso',
-        'Senza peso corporeo non posso calcolare il carico di trazioni e assistite.')
+        `Senza il peso di ${nome} non posso calcolare il suo carico di trazioni e assistite.`)
       : []);
   };
   mostraAvviso(imp.pesoCorporeo == null);
@@ -110,7 +124,7 @@ function sezionePeso(imp) {
     const n = parseFloat(grezzo.replace(',', '.'));
 
     if (grezzo === '') {
-      await store.scrivi('pesoCorporeo', null);
+      await store.scriviPeso(persona, null);
       ultimo = '';
       mostraAvviso(true);
       esito.textContent = 'Peso cancellato.';
@@ -120,7 +134,7 @@ function sezionePeso(imp) {
       esito.textContent = 'Scrivi un numero di chili, per esempio 78.';
       return;
     }
-    await store.scrivi('pesoCorporeo', n);
+    await store.scriviPeso(persona, n);
     ultimo = grezzo;
     mostraAvviso(false);
     esito.textContent = 'Peso salvato.';
@@ -128,17 +142,14 @@ function sezionePeso(imp) {
 
   campo.addEventListener('blur', salva);
 
-  return h('div.blocco', [
-    h('p.occhiello', 'Peso corporeo'),
+  return h('div.pila-s', [
+    h('p.titolo-2', nome),
     avviso,
     h('div.alt-riga-campo', [
       h('div.cresci', [campo]),
       h('button.btn', { onclick: salva }, 'Salva'),
     ]),
     esito,
-    h('p.nota',
-      'Serve solo a calcolare il carico di trazioni e assistite. '
-      + 'Non viene tracciato nel tempo e non è una misura del piano.'),
   ]);
 }
 
@@ -189,7 +200,8 @@ function sezioneData(imp, st, ridisegna) {
 /* ---------- piano attivo --------------------------------- */
 
 function etichettaPiano(p) {
-  if (p.attivo) return 'attivo';
+  if (p.locale) return p.attivo ? 'creato dall’app · attivo' : 'creato dall’app';
+  if (p.attivo) return p.modificato ? 'attivo · cambiato dall’app' : 'attivo';
   if (p.passato) return 'passato';
   if (p.futuro) return 'in arrivo';
   return '';
@@ -211,7 +223,7 @@ function sezionePiano(imp, elenco, ridisegna) {
     return h('div.alt-riga-piano', [
       h('div.cresci', [
         h('a.alt-nome-piano', { href: `#/scheda/${p.id}` }, p.nome),
-        h('p.nota', `Settimane ${p.settimanaDa}–${p.settimanaA} · ${etichettaPiano(p)}`),
+        h('p.nota', p.locale ? etichettaPiano(p) : `Settimane ${p.settimanaDa}–${p.settimanaA} · ${etichettaPiano(p)}`),
       ]),
       forzato
         ? h('span.occhiello.alt-marchio', 'forzato')
@@ -229,8 +241,10 @@ function sezionePiano(imp, elenco, ridisegna) {
       ? h('button.btn', { onclick: automatico, style: 'margin-top:10px;width:100%' },
         'Torna al calcolo automatico')
       : null,
+    h('a.btn', { href: '#/modifica/nuovo', style: 'margin-top:10px;width:100%' }, '+ Crea un piano nuovo'),
     h('p.nota', { style: 'margin-top:10px' },
-      'Normalmente il piano lo sceglie la data di inizio. Tocca un nome per leggerlo.'),
+      'Normalmente il piano lo sceglie la data di inizio, tra quelli scritti da Claude. '
+      + 'Uno creato dall’app vale quando lo forzi. Tocca un nome per leggerlo.'),
   ]);
 }
 
@@ -259,6 +273,7 @@ function sezioneModifiche(quante, ridisegna) {
         + 'e rimetto i piani come sono scritti? Carichi, foto e spunte non si toccano.';
       if (!conferma(testo)) return;
       await personalizza.azzeraTutte();
+      await piani.azzeraCopie();
       ridisegna();
     },
   }, 'Azzera');
@@ -272,9 +287,10 @@ function sezioneModifiche(quante, ridisegna) {
       azzera,
     ]),
     h('p.nota', { style: 'margin-top:8px' },
-      'Nomi di esercizi e di pietanze cambiati, voci tolte, voci spostate da una lista '
-      + 'della spesa all’altra. Si fanno da Scheda e da Cibo, col pulsante Modifica. '
-      + 'Restano su questo telefono ed entrano nel backup.'),
+      'Schede cambiate, nomi e gruppi degli esercizi, pasti cambiati, alimenti accesi, spenti, '
+      + 'aggiunti o tolti, voci della spesa cambiate di reparto o aggiunte. Si fanno da Scheda e da Cibo, col '
+      + 'pulsante Modifica. Restano su questo telefono ed entrano nel backup. '
+      + 'Azzerando, i piani creati dall’app restano: si eliminano da soli, dalla loro modifica.'),
   ]);
 }
 
@@ -345,11 +361,14 @@ function sezioneBackup(imp, { mb, conDati }) {
 
       const pezzi = [
         `Il file contiene ${a.nSessioni} allenamenti, ${a.nSerie} serie e ${a.nFoto} foto.`,
-        a.profilo ? `Profilo: ${nomeProfilo(a.profilo)}.` : null,
+        a.profilo ? `Dal telefono di ${nomeProfilo(a.profilo)}.` : null,
         a.creato ? `Creato il ${dataDaIsoLungo(a.creato)}.` : null,
         '',
-        'I dati con lo stesso identificativo vengono sostituiti da quelli del file. '
-        + 'Tutto il resto resta dov’è. Le impostazioni vengono riscritte.',
+        a.daAltri
+          ? `Aggiungo gli allenamenti e le foto di ${nomeProfilo(a.profilo)} a quelli di questo telefono. `
+            + 'Le impostazioni di qui e la spesa restano come sono.'
+          : 'I dati con lo stesso identificativo vengono sostituiti da quelli del file. '
+            + 'Tutto il resto resta dov’è. Le impostazioni vengono riscritte.',
         '',
         'Procedo?',
       ].filter((x) => x !== null);

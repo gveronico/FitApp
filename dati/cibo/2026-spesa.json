@@ -1,60 +1,42 @@
 {
   "id": "2026-spesa",
-  "liste": [
+  "nome": "Lista della spesa 1.3",
+  "altro": "Altro",
+  "reparti": [
     {
-      "id": "A",
-      "nome": "Lista A — spesa comune",
-      "sottotitolo": "Da chiedere ai genitori",
-      "reparti": [
-        {
-          "nome": "Verdura",
-          "nota": "Deve esserci tutta la settimana",
-          "voci": ["Zucchine", "Broccoli", "Spinaci", "Fagiolini", "Carote", "Sedano", "Peperoni", "Zucca", "Patate", "Pomodorini", "Insalata mista e rucola", "Finocchi", "Cipolla, aglio, limoni"]
-        },
-        {
-          "nome": "Frutta",
-          "voci": ["Banane", "Mele o pere", "Arance o mandarini"]
-        },
-        {
-          "nome": "Proteine fresche",
-          "voci": ["Uova (almeno 2 confezioni)", "Petti di pollo (2-3)", "Fesa di tacchino a fette", "Macinato di manzo (per le polpette)"]
-        },
-        {
-          "nome": "Dispensa",
-          "voci": ["Riso", "Passata di pomodoro", "Lenticchie in barattolo", "Tonno in scatola", "Olio extravergine d'oliva", "Parmigiano o grana", "Miele", "Sale, spezie, aceto"]
-        }
-      ]
+      "nome": "Verdura",
+      "alimenti": ["Zucchine", "Broccoli", "Spinaci", "Fagiolini", "Carote", "Sedano", "Peperoni", "Zucca", "Patate", "Pomodorini", "Pomodori", "Insalata", "Rucola", "Lattuga", "Finocchi", "Melanzane", "Cavolfiore", "Cavolo", "Verza", "Cetrioli", "Asparagi", "Funghi", "Bietole", "Radicchio", "Porri", "Cipolla", "Aglio"],
+      "sempre": ["Cipolla, aglio, limoni"]
     },
     {
-      "id": "B",
-      "nome": "Lista B — spesa nostra",
-      "sottotitolo": "Io e Corinna",
-      "reparti": [
-        {
-          "nome": "Senza lattosio",
-          "voci": ["Yogurt greco senza lattosio (il formato grande, si usa tutti i giorni)", "Skyr senza lattosio", "Ricotta senza lattosio", "Latte proteico o senza lattosio", "Bevanda di soia"]
-        },
-        {
-          "nome": "Cereali e pane",
-          "voci": ["Cereali proteici", "Fiocchi d'avena", "Muesli", "Pasta integrale", "Farro o orzo perlato", "Riso basmati", "Pane integrale", "Piadine o wrap integrali", "Gallette integrali"]
-        },
-        {
-          "nome": "Proteine specifiche",
-          "voci": ["Salmone (tranci)", "Sgombro in scatola", "Bresaola", "Prosciutto crudo", "Barrette proteiche"]
-        },
-        {
-          "nome": "Frutta a guscio e semi",
-          "voci": ["Mandorle", "Nocciole", "Pistacchi", "Semi di zucca", "Semi di girasole"]
-        },
-        {
-          "nome": "Varie",
-          "voci": ["Cacao amaro in polvere", "Frutti di bosco (freschi o surgelati)"]
-        },
-        {
-          "nome": "Integratori",
-          "voci": ["Creatina monoidrato", "Omega 3 (controllare EPA+DHA in etichetta)"]
-        }
-      ]
+      "nome": "Frutta",
+      "alimenti": ["Banane", "Mele o pere", "Mele", "Pere", "Arance o mandarini", "Arance", "Mandarini", "Kiwi", "Frutti di bosco", "Fragole", "Mirtilli", "Lamponi", "Uva", "Ananas", "Melone", "Anguria", "Avocado", "Limoni"]
+    },
+    {
+      "nome": "Carne e pesce",
+      "alimenti": ["Pollo", "Petti di pollo", "Fesa di tacchino", "Tacchino a fette", "Tacchino", "Macinato di manzo", "Manzo", "Vitello", "Maiale", "Salmone", "Merluzzo", "Orata", "Branzino", "Gamberi", "Pesce", "Bresaola", "Prosciutto crudo", "Prosciutto cotto", "Prosciutto"]
+    },
+    {
+      "nome": "Uova e latticini",
+      "alimenti": ["Uova", "Yogurt greco senza lattosio", "Yogurt", "Skyr senza lattosio", "Skyr", "Ricotta senza lattosio", "Ricotta", "Latte proteico", "Latte senza lattosio", "Latte", "Bevanda di soia", "Bevanda", "Grana", "Parmigiano", "Pecorino", "Mozzarella senza lattosio", "Mozzarella", "Formaggio"]
+    },
+    {
+      "nome": "Pane, pasta e cereali",
+      "alimenti": ["Pasta integrale", "Pasta", "Farro", "Orzo", "Riso integrale", "Riso basmati", "Riso", "Quinoa", "Cous cous", "Pane integrale", "Pane", "Piadine integrali", "Piadine", "Piadina", "Wrap integrali", "Wrap", "Gallette integrali", "Gallette", "Cereali proteici", "Cereali", "Fiocchi d'avena", "Avena", "Muesli", "Fette biscottate"]
+    },
+    {
+      "nome": "Dispensa",
+      "alimenti": ["Tonno", "Sgombro", "Lenticchie", "Fagioli", "Piselli", "Legumi", "Passata di pomodoro", "Pelati", "Miele", "Cacao amaro", "Cacao", "Cannella", "Barrette proteiche", "Barrette", "Olio"],
+      "sempre": ["Olio extravergine d'oliva", "Sale, spezie, aceto"]
+    },
+    {
+      "nome": "Frutta a guscio e semi",
+      "alimenti": ["Mandorle", "Nocciole", "Pistacchi", "Anacardi", "Semi di zucca", "Semi di girasole", "Semi di chia", "Semi di lino", "Semi"]
+    },
+    {
+      "nome": "Integratori",
+      "alimenti": [],
+      "sempre": ["Creatina monoidrato", "Omega 3"]
     }
   ]
 }

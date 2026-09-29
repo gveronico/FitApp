@@ -63,9 +63,11 @@
   --su-colore:#000000;
 }
 
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* touch-action: manipulation toglie lo zoom col doppio tocco su tutto: l'app
+   non deve mai zoomare. Il pinch lo blocca app.js (iOS ignora user-scalable). */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 body {
   margin: 0;
@@ -451,6 +453,46 @@ details.piega > .corpo { padding: 12px 14px 14px; }
   color: var(--ink-2);
   white-space: nowrap;
 }
+
+/* ---------- seduta già fatta in settimana ---------------- */
+
+.segno {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.segno-fatta { background: var(--verde); color: var(--su-colore); }
+.segno-parte { background: var(--giallo); color: #000; }
+.segno-dafare { border: 1px solid currentColor; padding: 0 5px; opacity: 0.75; }
+.segni { display: flex; flex-wrap: wrap; gap: 0 6px; }
+
+/* ---------- interruttore: chi si allena, di chi sono i dati -- */
+
+.scelta {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: var(--bordo);
+  background: var(--linea);
+  border: var(--bordo) solid var(--linea);
+}
+.scelta-btn {
+  appearance: none;
+  min-height: var(--tap);
+  padding: 0 6px;
+  border: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.scelta-attiva { background: var(--ink); color: var(--paper); }
 
 /* ---------- utilità ------------------------------------- */
 

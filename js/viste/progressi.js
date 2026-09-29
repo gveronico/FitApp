@@ -1,8 +1,10 @@
 /* progressi.js — quanto si è saliti di carico, a ripetizioni fisse.
-   Due sotto-schede: Carichi (qui) e Foto (in foto.js, montata a parte). */
+   Due sotto-schede: Carichi (qui) e Foto (in foto.js, montata a parte).
+   In cima, di chi: Giuseppe o Corinna. Tutte e due le sotto-schede leggono i
+   dati della persona in vista (store.personaVista), e la scelta resta. */
 
 import {
-  h, metti, peso, percento, daIso, mesiBrevi, conferma,
+  h, metti, peso, percento, daIso, mesiBrevi, conferma, scelta,
 } from '../ui.js';
 import * as piani from '../piani.js';
 import * as store from '../store.js';
@@ -25,10 +27,30 @@ export async function monta(contenitore, parametri) {
   // Sotto-schede e corpo vivono in .schermata, come ogni altra vista (16px
   // di margine): prima toccavano i bordi perché erano appesi a #app.
   const schermata = h('div.schermata');
+  const zonaChi = h('div', { style: 'margin-bottom:12px' });
   const schede = h('div.schede', { role: 'tablist' });
   const corpo = h('div');
-  schermata.append(schede, corpo);
+  schermata.append(zonaChi, schede, corpo);
   contenitore.append(testata, schermata);
+
+  async function disegnaChi() {
+    const chi = await store.personaVista();
+    metti(zonaChi, h('p.occhiello', { style: 'margin-bottom:6px' }, 'Di chi'), scelta(
+      store.PERSONE.map((p) => ({ valore: p, etichetta: store.nomePersona(p) })),
+      chi,
+      async (v) => {
+        await store.scrivi('personaVista', v);
+        await disegnaChi();
+        const ora = attivo;
+        if (ora === 'foto' && typeof smontaFoto === 'function') smontaFoto();
+        smontaFoto = null;
+        attivo = null;
+        await cambia(ora || 'carichi');
+      },
+      'Di chi sono i progressi',
+    ));
+  }
+  await disegnaChi();
 
   const btnCarichi = h('button', {
     role: 'tab', 'aria-selected': String(vistaIniziale === 'carichi'), onclick: () => cambia('carichi'),

@@ -39,7 +39,6 @@ dalla `dataInizio` impostata dall'utente e sceglie il piano il cui intervallo la
   "sedute": [
     {
       "id": "upper-a",
-      "giorno": 1,            // 1 = lunedì … 7 = domenica
       "nome": "Upper A",
       "sottotitolo": "Petto, dorso, tricipiti",
       "riscaldamento": {
@@ -137,6 +136,10 @@ Non vincola niente: in Oggi fa solo il conto "fatti 1 di 2" della settimana. Qua
 sedute fare lo sceglie l'utente — in Oggi ogni seduta del piano si può avviare in
 qualsiasi giorno, e quella già fatta nella settimana viene segnalata.
 
+Le sedute **non hanno `giorno`** (dal 29/09/2026): sono allenamenti da fare nella
+settimana, e quale fare lo si sceglie in Oggi. L'ordine nel file è quello in cui l'app
+le propone. Un `giorno` rimasto in un file vecchio viene ignorato.
+
 ### `progressione`
 
 ```jsonc
@@ -169,15 +172,17 @@ qualsiasi giorno, e quella già fatta nella settimana viene segnalata.
       "pranzo": {
         "nome": "Pollo e ceci",
         "testo": "Pollo a cubetti + ceci, pomodorini, rucola, olio e limone.",
-        "ingredienti": ["Pollo", "Ceci", "Pomodorini", "Rucola"],
+        "ingredienti": ["Pollo", "Farro", "Orzo", "Pomodorini"],  // gli alimenti: vanno nella spesa
+        "spenti": ["Orzo"],        // facoltativo: in elenco ma spenti, si accendono dall'app
         "nota": "Pane integrale a parte.",
         "libero": false
       },
       "cena": { "...": "stessa forma" }
     }
   ],
-  "colazioni": [{ "nome": "Yogurt e avena", "testo": "..." }],
-  "spuntini": ["Yogurt greco senza lattosio + muesli"],
+  // Colazione e spuntini non sono ricette: sono alimenti. Stessa logica dei pasti.
+  "colazione": { "nota": "Dopo l'allenamento.", "alimenti": ["Cereali proteici", "Uova"], "spenti": [] },
+  "spuntino":  { "nota": "1-2 al giorno.", "alimenti": ["Barrette proteiche", "Mandorle"] },
   "domenica": { "minuti": 45, "voci": ["Lessare una pentola di farro o riso"] },
   "integratori": [
     { "cosa": "Creatina monoidrato", "verdetto": "Sì, per primo", "dose": "3-5 g al giorno", "ordine": 1 }
@@ -188,47 +193,88 @@ qualsiasi giorno, e quella già fatta nella settimana viene segnalata.
 
 Un pasto con `"libero": true` non ha ingredienti: è una serata libera.
 
+**Gli alimenti sono la spesa.** Il nome di un alimento è quello che compare nella lista
+della spesa, quindi va scritto come si compra: `Macinato di manzo`, non `Manzo`;
+`Tacchino a fette` e `Fesa di tacchino` sono due voci perché sono due prodotti. Lo stesso
+nome in più pasti fa una voce sola: accenti, maiuscole e punteggiatura non contano.
+
 ## Lista della spesa — `dati/cibo/2026-spesa.json`
+
+Dal 29/09/2026 non contiene voci: è il **catalogo dei reparti**. La lista la compone
+`js/spesa.js` da quello che è acceso nella dieta (pasti, colazione, spuntini). Una lista
+sola, niente più Lista A e Lista B.
 
 ```jsonc
 {
   "id": "2026-spesa",
-  "liste": [
+  "nome": "Lista della spesa 1.3",
+  "altro": "Altro",                 // il reparto di chi non ne ha uno
+  "reparti": [
     {
-      "id": "A",
-      "nome": "Lista A — spesa comune",
-      "sottotitolo": "Da chiedere ai genitori",
-      "reparti": [
-        { "nome": "Verdura", "nota": "Deve esserci tutta la settimana", "voci": ["Zucchine", "Broccoli"] }
-      ]
+      "nome": "Verdura",            // l'ordine dei reparti è quello della lista
+      "alimenti": ["Zucchine", "Broccoli"],  // chi sta qui; l'ordine vale anche dentro al reparto
+      "sempre": ["Cipolla, aglio, limoni"]   // facoltativo: in lista anche se la dieta non li chiede
     }
   ]
 }
 ```
 
-La chiave della spunta è `spesa:<idLista>:<voce>`, con la voce **come sta scritta qui**:
-resta quella anche dopo che l'utente ha rinominato o spostato la riga dall'app, così la
-spunta non si perde. Quello che invece spezza il legame è **riscrivere la voce in questo
-file**: la spunta e l'eventuale personalizzazione restano orfane. È accettabile — le
-spunte si azzerano ogni settimana comunque — ma vale la pena non rimaneggiare le voci
-esistenti solo per sistemare la punteggiatura.
+Un alimento che il catalogo non ha per intero cerca il reparto dalle prime parole:
+`Riso integrale` trova `Riso`, `Yogurt magro` trova `Yogurt`. Per questo il catalogo
+tiene anche le parole generiche (`Riso`, `Pasta`, `Latte`...). Se non trova niente,
+va in `altro`. Aggiungere un alimento al catalogo non lo mette in lista: in lista va
+solo quello che la dieta usa.
+
+La spunta è `spesa:<slug del nome>` (`spesa:pane-integrale`): la stessa in ogni
+settimana e in ogni pasto. Riscrivere il nome di un alimento nella dieta cambia la
+voce, e la spunta vecchia resta orfana: si azzerano ogni settimana, va bene così.
 
 ---
 
 ## Personalizzazioni — quello che scrive l'utente sopra al piano
 
 I file di questa cartella restano di sola lettura. Sopra ci passa `js/personalizza.js`,
-che applica le modifiche fatte dall'app: un nome cambiato, una voce tolta, una voce
-spostata da una lista della spesa all'altra. Stanno in IndexedDB insieme al resto,
+che applica le modifiche fatte dall'app: un nome cambiato, un alimento acceso o spento,
+aggiunto o tolto, una voce della spesa in un altro reparto. Stanno in IndexedDB insieme al resto,
 quindi entrano nel backup e non escono dal telefono.
 
 ```
-pz:esercizio:<idEsercizio>               { nome }
-pz:pasto:<idPiano>:<giorno>:<quale>      { nome, testo }
-pz:colazione:<idPiano>:<slug>            { nome, testo, nascosto }
-pz:spuntino:<idPiano>:<slug>             { testo, nascosto }
-pz:spesa:<idLista>:<voce>                { testo, lista, nascosto }
+pz:esercizio:<idEsercizio>               { nome, gruppo }
+pz:pasto:<idPiano>:<giorno>:<quale>      { nome, testo, ingredienti, scelta, nota }
+pz:alimenti:<idPiano>:colazione          { ingredienti, scelta }
+pz:alimenti:<idPiano>:spuntino           { ingredienti, scelta }
+pz:spesa:<slug>                          { reparto, nascosto }      nascosto: solo le voci `sempre`
+pz:spesa:+<id>                           { testo, reparto }         aggiunta dall'app
 ```
+
+`ingredienti` c'è solo quando l'elenco è diverso da quello del piano (un alimento
+aggiunto o tolto); `scelta` è `{ <slug>: true|false }`, solo per gli alimenti accesi o
+spenti a mano rispetto al piano. Riaccendere quello che il piano ha acceso toglie la
+scelta: non resta una modifica fantasma.
+
+Le chiavi di prima del 29/09/2026 (`pz:colazione…`, `pz:spuntino…`, `pz:spesa:A:…`,
+`pz:spesa:B:…`) non corrispondono più a niente e l'app non le conta.
+
+Le schede modificate dall'app non sono personalizzazioni sparse ma **copie intere**,
+sempre in `impostazioni`:
+
+```
+piano:<idPiano>   { piano, base, locale, meta, modificato }
+```
+
+- `piano` è il JSON completo, nella stessa forma dei file qui sopra;
+- `base` è la firma del file del repo da cui la copia è partita. Se Claude cambia quel
+  file, la firma non torna più e l'app chiede quale tenere;
+- `locale: true` è un piano creato dall'app, che nel repo non esiste. `meta` ne tiene
+  `settimanaDa`, `settimanaA`, `monitorata`. Il calendario non lo sceglie mai da solo:
+  vale quando lo si forza.
+
+Nome e gruppo di un esercizio restano in `pz:esercizio`, legati all'id: valgono in ogni
+piano, così i progressi per gruppo non cambiano da una scheda all'altra.
+
+Le sessioni portano anche `seriePreviste` (dopo le variazioni del giorno), `serieFatte`,
+`ridotto` e `variazioni: { <idEsercizio>: { serie, rip, ripMin, ripMax, ripSerie } }`.
+Le righe scritte e non confermate stanno in `bozze:<idSessione>` finché non si salvano.
 
 Due cose da non dimenticare:
 

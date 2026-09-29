@@ -12,12 +12,17 @@
      foto/<mese>-<posa>-<id>.jpg   uno per scatto
 
    costruisciZip() e leggiZip() non toccano il DOM: si possono provare a parte.
+
+   Versione 2 (29/09/2026): sessioni, serie e foto portano `persona`, e il file
+   contiene i dati di tutti e due. Un file di versione 1 è di una persona sola,
+   quella del suo `profilo`. Se è il backup del telefono dell'altra persona, si
+   aggiungono i suoi allenamenti e le sue foto e le impostazioni di qui restano.
 */
 
 import { iso } from './ui.js';
 import * as store from './store.js';
 
-export const VERSIONE_FORMATO = 1;
+export const VERSIONE_FORMATO = 2;
 
 /* ---------- CRC32 --------------------------------------- */
 
@@ -239,7 +244,7 @@ export async function esporta() {
       throw new Error(`Non riesco a leggere la foto di ${f.mese} (${f.posa}): ${e?.message || e}`);
     }
     voci.push({ nome: file, dati: byte });
-    metaFoto.push({ id: f.id, mese: f.mese, posa: f.posa, creata: f.creata, file });
+    metaFoto.push({ id: f.id, persona: f.persona || null, mese: f.mese, posa: f.posa, creata: f.creata, file });
   }
 
   const contenuto = {
@@ -335,8 +340,10 @@ async function apriFile(file) {
  */
 export async function anteprima(file) {
   const { dati } = await apriFile(file);
+  const { suo, daAltri } = await provenienza(dati);
   return {
-    profilo: dati.impostazioni?.profilo || null,
+    profilo: suo,
+    daAltri,
     creato: dati.creato || null,
     nSessioni: dati.sessioni?.length || 0,
     nSerie: dati.serie?.length || 0,
@@ -349,11 +356,58 @@ export async function anteprima(file) {
  * vengono sostituiti, gli altri restano dov'erano.
  * Restituisce { nSessioni, nSerie, nFoto, nSaltate }.
  */
+/** Di chi è il file, e se viene dal telefono dell'altra persona. */
+async function provenienza(dati) {
+  const mio = await store.leggi('profilo');
+  const suo = dati.impostazioni?.profilo || null;
+  return { mio, suo, daAltri: !!(mio && suo && mio !== suo) };
+}
+
+/**
+ * Cosa scrivere davvero. Ogni record prende la sua persona (i file di prima
+ * non l'avevano: è quella del profilo del file). Dal telefono dell'altra
+ * persona arrivano solo i suoi dati: niente impostazioni di qui riscritte,
+ * niente spunte della spesa. Del suo si tengono il peso corporeo, se qui
+ * manca, e il modo delle trazioni.
+ */
+async function daScrivere(dati) {
+  const { mio, suo, daAltri } = await provenienza(dati);
+  const diChi = (x) => x.persona || suo || mio || null;
+  const timbra = (x) => { const p = diChi(x); return p ? { ...x, persona: p } : x; };
+  const sessioni = (dati.sessioni || []).map(timbra);
+  const serie = (dati.serie || []).map(timbra);
+  const imp = dati.impostazioni || {};
+
+  let impostazioni = null;
+  if (daAltri) {
+    impostazioni = {};
+    const pesoSuo = imp[`peso:${suo}`] ?? imp.pesoCorporeo;
+    if (pesoSuo != null && (await store.pesoDi(suo)) == null) impostazioni[`peso:${suo}`] = pesoSuo;
+    for (const [k, v] of Object.entries(imp)) {
+      const m = /^modoCarico:([^:]+)$/.exec(k);
+      if (m) impostazioni[`modoCarico:${suo}:${m[1]}`] = v;
+    }
+  } else if (dati.impostazioni) {
+    impostazioni = { ...imp };
+    if (impostazioni.pesoCorporeo != null && suo && impostazioni[`peso:${suo}`] == null) {
+      impostazioni[`peso:${suo}`] = impostazioni.pesoCorporeo;
+    }
+    delete impostazioni.pesoCorporeo;
+    impostazioni.versioneDati = 2;
+  }
+
+  return {
+    diChi,
+    dati: { impostazioni, sessioni, serie, spunte: daAltri ? null : dati.spunte },
+  };
+}
+
 export async function importa(file) {
   const { voci, dati } = await apriFile(file);
+  const { diChi, dati: pulito } = await daScrivere(dati);
 
   try {
-    await store.importaDati(dati);
+    await store.importaDati(pulito);
   } catch (e) {
     throw new Error(`Il ripristino dei dati si è fermato: ${e?.message || e}`);
   }
@@ -368,6 +422,7 @@ export async function importa(file) {
     try {
       await store.salvaFoto({
         id: f.id,
+        persona: diChi(f),
         mese: f.mese,
         posa: f.posa,
         creata: f.creata,

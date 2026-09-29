@@ -19,6 +19,7 @@ const MOD = new URL('../js/', import.meta.url).href;
 const personalizza = await import(`${MOD}personalizza.js`);
 const piani = await import(`${MOD}piani.js`);
 const progressi = await import(`${MOD}viste/progressi.js`);
+const spesa = await import(`${MOD}spesa.js`);
 
 let fatte = 0;
 const prova = async (nome, fn) => {
@@ -188,9 +189,24 @@ await prova('il minestrone c’è ed è accompagnato da una proteina', () => {
   assert.match(conMinestrone[0].cena.testo, /omelette/i);
 });
 
-await prova('colazione con cereali proteici e spuntino con barretta', () => {
-  assert.ok(cibo.colazioni.some((c) => /cereali proteici/i.test(c.testo)));
-  assert.ok(cibo.spuntini.some((s) => /barretta proteica/i.test(s.testo)));
+await prova('colazione e spuntini sono alimenti, non ricette, e ci sono tutti', () => {
+  assert.equal(cibo.colazioni, undefined);
+  assert.equal(cibo.spuntini, undefined);
+  const col = cibo.colazione.alimenti.map((a) => a.nome);
+  const spu = cibo.spuntino.alimenti.map((a) => a.nome);
+  for (const x of ['Cereali proteici', 'Latte proteico', 'Fiocchi d\'avena', 'Skyr senza lattosio', 'Frutti di bosco', 'Cacao amaro', 'Bresaola']) {
+    assert.ok(col.includes(x), `manca ${x} nella colazione`);
+  }
+  for (const x of ['Barrette proteiche', 'Muesli', 'Mandorle', 'Semi di zucca', 'Gallette integrali', 'Cannella']) {
+    assert.ok(spu.includes(x), `manca ${x} negli spuntini`);
+  }
+  assert.ok([...cibo.colazione.alimenti, ...cibo.spuntino.alimenti].every((a) => a.scelto), 'partono tutti accesi');
+});
+
+await prova('martedì a pranzo il farro è acceso e l’orzo no', () => {
+  const al = giorno(2).pranzo.alimenti;
+  assert.deepEqual(al.map((a) => a.nome), ['Farro', 'Orzo', 'Tonno', 'Pomodorini', 'Zucchine']);
+  assert.deepEqual(al.filter((a) => !a.scelto).map((a) => a.nome), ['Orzo']);
 });
 
 await prova('vincoli e avvertenze non stanno più nel piano', () => {
@@ -232,14 +248,15 @@ await prova('il piano nel repo non viene mai modificato in memoria', async () =>
 
 const rifCibo = { file: 'dati/cibo/2026-base.json' };
 
-await prova('uno spuntino si può togliere dalla lista', async () => {
-  const prima = (await piani.piano(rifCibo)).spuntini;
-  const bersaglio = prima.find((s) => /barretta/i.test(s.testo));
-  await personalizza.scrivi(bersaglio.chiave, { nascosto: true });
-  const dopo = (await piani.piano(rifCibo)).spuntini;
-  assert.equal(dopo.length, prima.length - 1);
-  assert.ok(!dopo.some((s) => /barretta/i.test(s.testo)));
-  await personalizza.scrivi(bersaglio.chiave, null);
+await prova('uno spuntino si spegne e torna acceso', async () => {
+  const chiave = personalizza.chiaveAlimenti('2026-base', 'spuntino');
+  await personalizza.scegliAlimento(chiave, 'Barrette proteiche', false);
+  let al = (await piani.piano(rifCibo)).spuntino.alimenti;
+  assert.equal(al.find((a) => a.nome === 'Barrette proteiche').scelto, false);
+  await personalizza.scegliAlimento(chiave, 'Barrette proteiche', true);
+  al = (await piani.piano(rifCibo)).spuntino.alimenti;
+  assert.equal(al.find((a) => a.nome === 'Barrette proteiche').scelto, true);
+  assert.equal(personalizza.quante(), 0, 'tornato com’era, non è una modifica');
 });
 
 await prova('un pasto si può rinominare', async () => {
@@ -254,56 +271,106 @@ await prova('un pasto si può rinominare', async () => {
 });
 
 const rifSpesa = { file: 'dati/cibo/2026-spesa.json' };
+const lista = async () => spesa.componi(await piani.piano(rifCibo), await piani.piano(rifSpesa));
+const voci = (l) => l.reparti.flatMap((r) => r.voci);
+const cerca = (l, testo) => voci(l).find((v) => v.testo === testo);
 
-await prova('le voci della spesa arrivano con chiave e testo', async () => {
-  const spesa = await piani.piano(rifSpesa);
-  const voce = spesa.liste[0].reparti[0].voci[0];
-  assert.equal(voce.originale, 'Zucchine');
-  assert.equal(voce.testo, 'Zucchine');
-  assert.equal(voce.chiave, 'pz:spesa:A:Zucchine');
-  assert.equal(personalizza.spuntaDaChiave(voce.chiave), 'spesa:A:Zucchine');
-  assert.equal(voce.spostata, false);
+await prova('la spesa è una lista sola, fatta dalla dieta, senza Lista A e B', async () => {
+  const l = await lista();
+  assert.equal((await piani.piano(rifSpesa)).liste, undefined);
+  assert.ok(l.totale > 40, `voci: ${l.totale}`);
+  // Ogni alimento acceso della dieta è in lista, e una volta sola.
+  const cibo2 = await piani.piano(rifCibo);
+  const accesi = spesa.accesi(cibo2);
+  for (const a of accesi) assert.ok(cerca(l, a.nome), `${a.nome} non è nella spesa`);
+  const testi = voci(l).map((v) => personalizza.slug(v.testo));
+  assert.equal(new Set(testi).size, testi.length, 'ci sono voci doppie');
+  // E niente che la dieta non chieda, a parte le cose fisse.
+  const daDieta = new Set(accesi.map((a) => personalizza.slug(a.nome)));
+  const estranee = voci(l).filter((v) => v.origine === 'dieta' && !daDieta.has(personalizza.slug(v.testo)));
+  assert.deepEqual(estranee, []);
+  assert.ok(!cerca(l, 'Orzo'), 'l’orzo è spento ma è in lista');
+  assert.ok(!cerca(l, 'Sgombro in scatola'), 'lo sgombro non è nella dieta');
 });
 
-await prova('una voce si sposta da Lista A a Lista B senza perdere la spunta', async () => {
-  const chiave = personalizza.chiaveVoceSpesa('A', 'Zucchine');
-  await personalizza.scrivi(chiave, { lista: 'B' });
-  const spesa = await piani.piano(rifSpesa);
-
-  const inA = spesa.liste.find((l) => l.id === 'A').reparti
-    .flatMap((r) => r.voci).filter((v) => v.originale === 'Zucchine');
-  const inB = spesa.liste.find((l) => l.id === 'B').reparti
-    .flatMap((r) => r.voci).filter((v) => v.originale === 'Zucchine');
-
-  assert.equal(inA.length, 0, 'è rimasta anche in A');
-  assert.equal(inB.length, 1, 'non è arrivata in B');
-  assert.equal(inB[0].spostata, true);
-  assert.equal(inB[0].listaOrigine, 'A');
-  assert.equal(inB[0].chiave, 'pz:spesa:A:Zucchine', 'la chiave della spunta è cambiata');
-  await personalizza.scrivi(chiave, null);
+await prova('una voce dice dove si usa e sta nel suo reparto', async () => {
+  const l = await lista();
+  const pane = cerca(l, 'Pane integrale');
+  assert.deepEqual(pane.usi, ['lun', 'mar', 'mer', 'gio', 'colazione']);
+  assert.equal(pane.reparto, 'Pane, pasta e cereali');
+  assert.equal(cerca(l, 'Tonno').reparto, 'Dispensa');
+  assert.equal(cerca(l, 'Creatina monoidrato').origine, 'sempre');
+  assert.equal(pane.spunta, 'spesa:pane-integrale');
+  assert.equal(l.reparti[0].nome, 'Verdura');
 });
 
-await prova('una voce si rinomina e una si toglie', async () => {
-  await personalizza.scrivi(personalizza.chiaveVoceSpesa('B', 'Muesli'), { testo: 'Muesli semplice' });
-  await personalizza.scrivi(personalizza.chiaveVoceSpesa('B', 'Bresaola'), { nascosto: true });
-  const spesa = await piani.piano(rifSpesa);
-  const voci = spesa.liste.find((l) => l.id === 'B').reparti.flatMap((r) => r.voci);
-  assert.ok(voci.some((v) => v.testo === 'Muesli semplice' && v.personalizzata));
-  assert.ok(!voci.some((v) => v.originale === 'Bresaola'));
+await prova('farro spento e orzo acceso: in lista c’è l’orzo', async () => {
+  const chiave = personalizza.chiavePasto('2026-base', 2, 'pranzo');
+  await personalizza.scegliAlimento(chiave, 'Farro', false, true);
+  await personalizza.scegliAlimento(chiave, 'Orzo', true, false);
+  const l = await lista();
+  assert.ok(cerca(l, 'Orzo'), 'l’orzo acceso non è arrivato');
+  assert.ok(!cerca(l, 'Farro'), 'il farro spento è rimasto');
   await personalizza.azzeraTutte();
+});
+
+await prova('tonno spento: esce, e resta quello che serve altrove', async () => {
+  const chiave = personalizza.chiavePasto('2026-base', 2, 'pranzo');
+  await personalizza.scegliAlimento(chiave, 'Tonno', false);
+  await personalizza.scegliAlimento(chiave, 'Zucchine', false);
+  const l = await lista();
+  assert.ok(!cerca(l, 'Tonno'));
+  assert.ok(cerca(l, 'Zucchine'), 'le zucchine servono anche lunedì e giovedì');
+  assert.ok(!cerca(l, 'Zucchine').usi.includes('mar'));
+  await personalizza.azzeraTutte();
+});
+
+await prova('riso integrale aggiunto a un pasto: arriva in lista, nel reparto giusto', async () => {
+  const cibo2 = await piani.piano(rifCibo);
+  const pasto = cibo2.settimana.find((g) => g.giorno === 3).cena;
+  await personalizza.aggiungiAlimento(pasto.chiave, 'Riso integrale', pasto.ingredientiOriginali);
+  const riso = cerca(await lista(), 'Riso integrale');
+  assert.ok(riso, 'il riso integrale non è in lista');
+  assert.equal(riso.reparto, 'Pane, pasta e cereali');
+  assert.deepEqual(riso.usi, ['mer']);
+  // Un alimento sconosciuto va in Altro; e toglierlo lo toglie anche dalla lista.
+  await personalizza.aggiungiAlimento(pasto.chiave, 'Tahina', pasto.ingredientiOriginali);
+  assert.equal(cerca(await lista(), 'Tahina').reparto, 'Altro');
+  await personalizza.togliAlimento(pasto.chiave, 'Riso integrale', pasto.ingredientiOriginali);
+  await personalizza.togliAlimento(pasto.chiave, 'Tahina', pasto.ingredientiOriginali);
+  assert.ok(!cerca(await lista(), 'Riso integrale'));
+  assert.equal(personalizza.quante(), 0, 'tolti i due aggiunti, l’elenco è quello del piano');
+});
+
+await prova('un alimento della colazione tolto esce dalla spesa', async () => {
+  const chiave = personalizza.chiaveAlimenti('2026-base', 'colazione');
+  const originali = (await piani.piano(rifCibo)).colazione.originali;
+  await personalizza.togliAlimento(chiave, 'Skyr senza lattosio', originali);
+  assert.ok(!cerca(await lista(), 'Skyr senza lattosio'));
+  await personalizza.azzeraTutte();
+});
+
+await prova('reparto cambiato, voce fissa tolta, voce nuova aggiunta', async () => {
+  await personalizza.scrivi(personalizza.chiaveVoceSpesa('Miele'), { reparto: 'Frutta' });
+  await personalizza.scrivi(personalizza.chiaveVoceSpesa('Omega 3'), { nascosto: true });
+  await personalizza.aggiungiVoceSpesa({ testo: 'Carta da forno', reparto: 'Dispensa' });
+  const l = await lista();
+  assert.equal(cerca(l, 'Miele').reparto, 'Frutta');
+  assert.ok(!cerca(l, 'Omega 3'));
+  const carta = cerca(l, 'Carta da forno');
+  assert.equal(carta.origine, 'aggiunta');
+  assert.ok(carta.spunta.startsWith('spesa:'), 'la spunta non si azzera con le altre');
+  await personalizza.azzeraTutte();
+});
+
+await prova('le modifiche di prima (Lista A/B, colazioni come ricette) non si contano più', async () => {
+  const store = await import(`${MOD}store.js`);
+  await store.scrivi('pz:spesa:A:Zucchine', { lista: 'B' });
+  await store.scrivi('pz:colazione:2026-base:yogurt-e-avena', { nascosto: true });
+  await personalizza.carica(true);
   assert.equal(personalizza.quante(), 0);
-});
-
-await prova('un reparto svuotato non compare', async () => {
-  const spesa0 = await piani.piano(rifSpesa);
-  const integratori = spesa0.liste.find((l) => l.id === 'B').reparti
-    .find((r) => r.nome === 'Integratori');
-  await Promise.all(integratori.voci.map(
-    (v) => personalizza.scrivi(v.chiave, { nascosto: true }),
-  ));
-  const spesa = await piani.piano(rifSpesa);
-  assert.ok(!spesa.liste.find((l) => l.id === 'B').reparti.some((r) => r.nome === 'Integratori'));
-  await personalizza.azzeraTutte();
+  await store.cancella('pz:spesa:A:Zucchine');
+  await store.cancella('pz:colazione:2026-base:yogurt-e-avena');
 });
 
 /* ---------- progressi per gruppo ----------------------------- */
@@ -333,6 +400,187 @@ await prova('gli incrementi si aggregano per gruppo muscolare', () => {
   assert.equal(righe.find((r) => r.gruppo === 'petto-spalle').media, 37.5);
   assert.equal(righe.find((r) => r.gruppo === 'petto-spalle').quanti, 2);
   assert.ok(!righe.some((r) => r.gruppo === 'gambe'), 'il leg curl a meno rip non va contato');
+});
+
+
+/* ---------- modifiche dall'app: schede, piani nuovi ---------- */
+
+const store = await import(`${MOD}store.js`);
+const RIF1 = { id: '2026-fase1', file: 'dati/allenamento/2026-fase1.json' };
+
+await prova('leggiRip: fisse, range e una per serie', () => {
+  assert.deepEqual(piani.leggiRip('10'), { rip: '10', ripMin: 10, ripMax: 10, ripSerie: null });
+  assert.deepEqual(piani.leggiRip('8-10'), { rip: '8-10', ripMin: 8, ripMax: 10, ripSerie: null });
+  assert.deepEqual(piani.leggiRip('12 – 10 – 8'), { rip: '12-10-8', ripMin: 8, ripMax: 12, ripSerie: [12, 10, 8] });
+  assert.deepEqual(piani.leggiRip('10-8').ripSerie, [10, 8], 'due numeri che scendono sono una scala');
+  assert.equal(piani.leggiRip('dieci'), null);
+  assert.equal(piani.leggiRip(''), null);
+});
+
+await prova('il gruppo si cambia dall’app e vale per i progressi', async () => {
+  await personalizza.scrivi(personalizza.chiaveEsercizio('panca-piana-manubri'), { gruppo: 'braccia' });
+  const p = await piani.piano(RIF1);
+  const e = p.sedute[0].esercizi[0];
+  assert.equal(e.gruppo, 'braccia');
+  assert.equal(e.gruppoOriginale, 'petto-spalle');
+  assert.equal(e.nome, 'Panca piana con manubri', 'il nome non doveva cambiare');
+  await personalizza.azzeraTutte();
+});
+
+await prova('un piano modificato è una copia sul telefono; il repo resta com’è', async () => {
+  const p = await piani.pianoGrezzo(RIF1);
+  p.sedute[0].esercizi[0].serie = 5;
+  p.sedute[0].giorno = 3;
+  await piani.salvaPiano(RIF1, p);
+
+  const letto = await piani.piano(RIF1);
+  assert.equal(letto.sedute[0].esercizi[0].serie, 5);
+  assert.equal(letto.sedute[0].giorno, 3);
+  assert.deepEqual(await piani.statoCopia(RIF1), { copia: true, locale: false, repoCambiato: false });
+  assert.equal(await piani.quanteCopie(), 1);
+
+  const repo = await piani.piano({ file: RIF1.file });
+  assert.equal(repo.sedute[0].esercizi[0].serie, 3, 'il file del repo è stato toccato');
+
+  await piani.azzeraCopie();
+  assert.equal((await piani.piano(RIF1)).sedute[0].esercizi[0].serie, 3);
+});
+
+await prova('se Claude cambia il piano dopo le modifiche, l’app se ne accorge', async () => {
+  const p = await piani.pianoGrezzo(RIF1);
+  await piani.salvaPiano(RIF1, p);
+  const copia = await store.leggi('piano:2026-fase1');
+  await store.scrivi('piano:2026-fase1', { ...copia, base: 'firma-vecchia' });
+  assert.equal((await piani.statoCopia(RIF1)).repoCambiato, true);
+  await piani.tieniCopia(RIF1);
+  assert.equal((await piani.statoCopia(RIF1)).repoCambiato, false, 'Tieni il mio non ha tolto l’avviso');
+  await piani.ripristinaPiano(RIF1);
+  assert.equal((await piani.statoCopia(RIF1)).copia, false);
+});
+
+await prova('un piano creato dall’app: in elenco, fuori dal calendario, attivo se forzato', async () => {
+  const rif = await piani.creaPiano({ nome: 'Scheda mia', da: RIF1, settimanaDa: 2, settimane: 4 });
+  const idx = await piani.indice();
+  const voce = idx.allenamento.find((r) => r.id === rif.id);
+  assert.ok(voce && voce.locale, 'il piano nuovo non è nell’indice');
+  assert.equal(voce.settimanaA, 5);
+
+  await store.scrivi('dataInizio', '2026-09-21');
+  const primo = await piani.stato(new Date(2026, 8, 30));
+  assert.equal(primo.riferimento.id, '2026-fase1', 'il calendario ha scelto il piano dell’app');
+
+  await store.scrivi('pianoAttivo', rif.id);
+  const forzato = await piani.stato(new Date(2026, 8, 30));
+  assert.equal(forzato.riferimento.id, rif.id);
+  assert.equal(forzato.piano.sedute.length, 4, 'la copia non ha le sedute del piano di partenza');
+
+  await piani.ripristinaPiano(voce);
+  assert.equal(await store.leggi('pianoAttivo'), null, 'eliminato il piano, è rimasto forzato');
+  assert.ok(!(await piani.indice()).allenamento.some((r) => r.id === rif.id));
+  await store.scrivi('dataInizio', null);
+});
+
+await prova('un piano vuoto nasce con una seduta senza esercizi', async () => {
+  const rif = await piani.creaPiano({ nome: 'Da zero' });
+  const p = await piani.pianoGrezzo(rif);
+  assert.equal(p.sedute.length, 1);
+  assert.deepEqual(p.sedute[0].esercizi, []);
+  await piani.ripristinaPiano(rif);
+});
+
+await prova('una sessione ridotta risulta fatta in parte nella settimana', async () => {
+  await store.salvaSessione({ id: 'ses-rid', data: '2026-09-22', iniziata: 1, finita: 2, sedutaId: 'upper-a', seriePreviste: 15, ridotto: true });
+  await store.salvaSerie({ id: 'ser-rid-1', sessioneId: 'ses-rid', data: '2026-09-22', sedutaId: 'upper-a', esercizioId: 'x', indice: 0, carico: 10, ripetizioni: 10 });
+  await store.salvaSerie({ id: 'ser-rid-2', sessioneId: 'ses-rid', data: '2026-09-22', sedutaId: 'upper-a', esercizioId: 'x', indice: 1, carico: 10, ripetizioni: 10 });
+  const fatte = await piani.fatteInSettimana('2026-09-21', new Date(2026, 8, 23));
+  const f = fatte.find((x) => x.sessioneId === 'ses-rid');
+  assert.deepEqual([f.nSerie, f.previste, f.completa], [2, 15, false]);
+  const stato = piani.statoSeduta(fatte, 'upper-a');
+  assert.equal(stato.completa, false);
+  await store.eliminaSerie('ser-rid-1');
+  await store.eliminaSerie('ser-rid-2');
+});
+
+/* ---------- cibo e spesa aggiunti dall'app ------------------- */
+
+await prova('pasti: si cambiano anche ingredienti e nota', async () => {
+  const cibo = await piani.piano({ file: 'dati/cibo/2026-base.json' });
+  const pasto = cibo.settimana[0].pranzo;
+  await personalizza.scrivi(pasto.chiave, { ingredienti: ['Uova', 'Zucchine'], nota: 'Con calma' });
+  const dopo = (await piani.piano({ file: 'dati/cibo/2026-base.json' })).settimana[0].pranzo;
+  assert.deepEqual(dopo.ingredienti, ['Uova', 'Zucchine']);
+  assert.equal(dopo.nota, 'Con calma');
+  assert.equal(dopo.personalizzato, true);
+  await personalizza.azzeraTutte();
+});
+
+/* ---------- due persone, un telefono ------------------------- */
+
+await prova('in due: ogni lettura dà i dati di una persona, TUTTE li dà tutti', async () => {
+  await store.scrivi('profilo', 'giuseppe');
+  await store.salvaSerie({ id: 'p-g', persona: 'giuseppe', sessioneId: 'sg', data: '2026-09-22', esercizioId: 'panca', indice: 0, carico: 30, ripetizioni: 12 });
+  await store.salvaSerie({ id: 'p-c', persona: 'corinna', sessioneId: 'sc', data: '2026-09-22', esercizioId: 'panca', indice: 0, carico: 12, ripetizioni: 12 });
+  await store.salvaSerie({ id: 'p-vecchia', sessioneId: 'sv', data: '2026-09-21', esercizioId: 'panca', indice: 0, carico: 28, ripetizioni: 12 });
+
+  const ids = (l) => l.map((s) => s.id).sort();
+  // Senza persona in vista si vede il proprietario, e le serie di prima sono sue.
+  assert.deepEqual(ids(await store.serieDiEsercizio('panca')), ['p-g', 'p-vecchia']);
+  assert.deepEqual(ids(await store.serieDiEsercizio('panca', 'corinna')), ['p-c']);
+  await store.scrivi('personaVista', 'corinna');
+  assert.deepEqual(ids(await store.serieDiEsercizio('panca')), ['p-c']);
+  assert.equal((await store.serieDiEsercizio('panca', store.TUTTE)).length, 3);
+  await store.scrivi('personaVista', null);
+
+  // La migrazione scrive la persona sui dati di prima, e sposta il peso.
+  await store.scrivi('pesoCorporeo', 81);
+  await store.migra();
+  const tutte = await store.tutteLeSerie(store.TUTTE);
+  assert.equal(tutte.find((s) => s.id === 'p-vecchia').persona, 'giuseppe');
+  assert.equal(await store.pesoDi('giuseppe'), 81);
+  assert.equal(await store.pesoDi('corinna'), null, 'il peso del proprietario è finito a Corinna');
+  assert.equal(await store.leggi('pesoCorporeo'), null);
+
+  for (const id of ['p-g', 'p-c', 'p-vecchia']) await store.eliminaSerie(id);
+  await store.scrivi(`peso:giuseppe`, null);
+  await store.scrivi('versioneDati', null);
+  await store.scrivi('profilo', null);
+});
+
+await prova('in due: il backup del telefono di Corinna si aggiunge, non riscrive', async () => {
+  const backup = await import(`${MOD}backup.js`);
+  await store.scrivi('profilo', 'giuseppe');
+  await store.scrivi('dataInizio', '2026-09-21');
+  await store.segnaSpunta('spesa:uova', true);
+
+  // Un backup di prima (versione 1), dal telefono di Corinna: niente persona sui record.
+  const suo = {
+    app: 'fitapp', versione: 1, creato: '2026-09-28T10:00:00Z',
+    impostazioni: { profilo: 'corinna', pesoCorporeo: 58, dataInizio: '2026-10-05', 'modoCarico:trazioni': 'assistito' },
+    sessioni: [{ id: 'ses-cor', data: '2026-09-28', iniziata: 1, finita: 2, sedutaId: 'upper-a' }],
+    serie: [{ id: 'ser-cor', sessioneId: 'ses-cor', data: '2026-09-28', esercizioId: 'panca', indice: 0, carico: 10, ripetizioni: 12 }],
+    spunte: { 'spesa:uova': false },
+    foto: [],
+  };
+  const zip = backup.costruisciZip([{ nome: 'dati.json', dati: JSON.stringify(suo) }]);
+  const file = { arrayBuffer: async () => zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength) };
+
+  const a = await backup.anteprima(file);
+  assert.equal(a.daAltri, true);
+  await backup.importa(file);
+
+  assert.equal(await store.leggi('profilo'), 'giuseppe', 'il proprietario è cambiato');
+  assert.equal(await store.leggi('dataInizio'), '2026-09-21', 'la data di inizio è stata riscritta');
+  assert.equal((await store.spunte('spesa:'))['spesa:uova'], true, 'la spesa è stata riscritta');
+  assert.equal(await store.pesoDi('corinna'), 58);
+  assert.equal(await store.leggi('modoCarico:corinna:trazioni'), 'assistito');
+  const serie = (await store.tutteLeSerie(store.TUTTE)).find((s) => s.id === 'ser-cor');
+  assert.equal(serie.persona, 'corinna');
+  assert.equal((await store.sessioni('corinna')).length, 1);
+  assert.equal((await store.sessioni('giuseppe')).filter((s) => s.id === 'ses-cor').length, 0);
+
+  await store.eliminaSessione('ses-cor');
+  await store.azzeraSpunte('spesa:');
+  for (const k of ['peso:corinna', 'modoCarico:corinna:trazioni', 'dataInizio', 'profilo']) await store.cancella(k);
 });
 
 console.log(`\n${fatte} prove passate.`);

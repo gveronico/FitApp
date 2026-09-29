@@ -14,6 +14,7 @@ const ROTTE = {
   foto:      () => import('./viste/foto.js'),
   cibo:      () => import('./viste/cibo.js'),
   altro:     () => import('./viste/altro.js'),
+  modifica:  () => import('./viste/modifica.js'),
   avvio:     () => import('./viste/avvio.js'),
 };
 
@@ -60,7 +61,7 @@ async function rotta() {
   for (const a of barra.querySelectorAll('a')) {
     const suo = a.dataset.rotta;
     const acceso = suo === destinazione
-      || (suo === 'scheda' && destinazione === 'sessione')
+      || (suo === 'scheda' && (destinazione === 'sessione' || destinazione === 'modifica'))
       || (suo === 'progressi' && destinazione === 'foto');
     if (acceso) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
@@ -91,17 +92,58 @@ function mostraErrore(e) {
   app.append(box);
 }
 
+/* ---------- niente zoom --------------------------------- */
+
+/* L'app non deve mai zoomare. Il doppio tocco lo toglie touch-action in
+   app.css; qui si ferma il pinch, che Safari concede anche con
+   user-scalable=no. Non si tocca touchend: bloccarlo mangerebbe il secondo
+   tocco rapido sul tastierino della sessione. */
+function bloccaZoom() {
+  const ferma = (e) => e.preventDefault();
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((t) => {
+    document.addEventListener(t, ferma, { passive: false });
+  });
+  document.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('dblclick', ferma, { passive: false });
+}
+
 /* ---------- service worker ------------------------------ */
+
+/** In locale il service worker non si registra: servirebbe la copia vecchia
+    a ogni modifica, e il debug dal computer diventa un indovinello. */
+const IN_LOCALE = ['localhost', '127.0.0.1'].includes(location.hostname);
 
 function registraSW() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol === 'file:') return;
+  if (IN_LOCALE) {
+    navigator.serviceWorker.getRegistrations?.()
+      .then((r) => r.forEach((x) => x.unregister()))
+      .catch(() => {});
+    return;
+  }
   navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW non registrato', e));
+
+  // Quando arriva una versione nuova dell'app, la pagina aperta ha in memoria i
+  // file vecchi, ma le schermate si caricano quando si aprono: verrebbero da quella
+  // nuova, e vecchio e nuovo insieme non si parlano ("… is not a function"). Si
+  // ricarica una volta, tutta nuova. Al primo avvio non c'è niente da ricaricare.
+  const avevaVersione = !!navigator.serviceWorker.controller;
+  let ricaricata = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!avevaVersione || ricaricata) return;
+    ricaricata = true;
+    location.reload();
+  });
 }
 
 /* ---------- avvio --------------------------------------- */
 
 async function avvia() {
+  bloccaZoom();
+  try { await store.migra(); } catch (e) { console.warn('migrazione non riuscita', e); }
   applicaTema(await store.leggi('tema'));
   window.addEventListener('hashchange', rotta);
   await rotta();

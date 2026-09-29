@@ -1,20 +1,22 @@
-/* scheda.js — la scheda di allenamento in lettura: si consulta a casa o tra
-   una serie e l'altra. Non registra niente — la registrazione è in sessione.js. */
+/* scheda.js — la scheda di allenamento: si consulta a casa o tra una serie e
+   l'altra, e si modifica qui stesso. Modifica apre l'editor (modifica.js) al
+   posto dell'elenco delle sedute; Fine ridisegna la scheda con le modifiche.
+   Non registra niente — la registrazione è in sessione.js. */
 
-import { h, metti, durata, modifica, bottoneModifica } from '../ui.js';
+import { h, metti, durata, segniFatta } from '../ui.js';
 import * as piani from '../piani.js';
 import * as store from '../store.js';
-import * as personalizza from '../personalizza.js';
-
-const GIORNI = ['', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica'];
+import { editor } from './modifica.js';
 
 export async function monta(contenitore, parametri) {
   iniettaStile();
 
   const idRichiesto = parametri && parametri[0] ? parametri[0] : null;
-  const [st, profilo, idx] = await Promise.all([
-    piani.stato(), store.leggi('profilo'), piani.indice(),
+  const [st, chi, idx] = await Promise.all([
+    piani.stato(), store.partecipanti(), piani.indice(),
   ]);
+  // La variante facile è di Corinna: si vede quando si allena anche lei.
+  const profilo = chi.includes('corinna') ? 'corinna' : chi[0];
 
   let riferimento = st.riferimento;
   let piano = st.piano;
@@ -46,7 +48,7 @@ export async function monta(contenitore, parametri) {
 
   if (archiviato) {
     schermata.append(h('div.fascia.fascia-avviso', [
-      'Piano archiviato, in sola lettura. ',
+      'Piano non in uso, qui in sola lettura. ',
       h('a', { href: '#/scheda', style: 'color:inherit' }, 'Torna alla scheda attiva →'),
     ]));
   }
@@ -67,6 +69,14 @@ export async function monta(contenitore, parametri) {
 
   schermata.append(rigaStato(riferimento, piano));
 
+  const statoCopia = await piani.statoCopia(riferimento);
+  if (statoCopia.repoCambiato) {
+    schermata.append(h('div.fascia.fascia-avviso', [
+      'Claude ha aggiornato questo piano dopo le tue modifiche. ',
+      h('a', { href: `#/modifica/${riferimento.id}`, style: 'color:inherit' }, 'Scegli quale tenere →'),
+    ]));
+  }
+
   const regole = bloccoRegole(piano);
   if (regole) schermata.append(regole);
 
@@ -74,60 +84,42 @@ export async function monta(contenitore, parametri) {
 
   const settimanaFase = settimanaNellaFaseEff(riferimento, st.settimana);
 
-  /* Quali fisarmoniche sono aperte: si ridisegna a ogni rinomina e senza
-     questo insieme si richiuderebbe tutto sotto le mani. */
-  const aperte = new Set(
-    (piano.sedute || [])
-      .filter((s) => !archiviato && s.giorno === st.giorno)
-      .map((s) => s.id),
-  );
+  const fatte = archiviato ? [] : await Promise.all(chi.map(async (p) => [
+    store.nomePersona(p), await piani.fatteInSettimana(st.dataInizio, new Date(), null, p),
+  ]));
 
-  const barraModifica = h('div.riga-sp.sch-barra');
-  const contenitoreSedute = h('div.pila');
-  schermata.append(barraModifica, contenitoreSedute);
+  const zonaSedute = h('div.pila', (piano.sedute || []).map((seduta, i) => bloccoSeduta(seduta, {
+    numero: i + 1,
+    settimanaFase,
+    profilo,
+    mostraInizio: !archiviato,
+    fatta: segniFatta(fatte.map(([nome, f]) => [nome, piani.statoSeduta(f, seduta.id)])),
+  })));
 
-  let inModifica = false;
+  /* Modifica: l'editor prende il posto delle sedute, nella stessa schermata.
+     Fine rimonta la scheda, così si rilegge il piano con le modifiche. */
+  const btnModifica = h('button.btn.btn-s', {
+    type: 'button',
+    onclick: async () => {
+      if (btnModifica.textContent === 'Fine') {
+        contenitore.replaceChildren();
+        await monta(contenitore, parametri);
+        return;
+      }
+      btnModifica.textContent = 'Fine';
+      schermata.classList.remove('solo-lettore');
+      etichetta.textContent = 'Modifica · si salva a ogni Salva';
+      await editor(zonaSedute, riferimento);
+    },
+  }, 'Modifica');
+  const etichetta = h('p.occhiello', archiviato ? 'Sedute' : 'Sedute della settimana');
 
-  function disegnaSedute() {
-    metti(barraModifica, archiviato ? [] : [
-      h('p.occhiello', inModifica ? 'Tocca ✎ per cambiare un nome' : 'Sedute della settimana'),
-      h('button.btn.btn-s', {
-        type: 'button',
-        onclick: () => { inModifica = !inModifica; disegnaSedute(); },
-      }, inModifica ? 'Fine' : 'Modifica nomi'),
-    ]);
-
-    metti(contenitoreSedute, (piano.sedute || []).map((seduta) => bloccoSeduta(seduta, {
-      oggi: !archiviato && seduta.giorno === st.giorno,
-      aperta: aperte.has(seduta.id),
-      onApri: (apri) => { if (apri) aperte.add(seduta.id); else aperte.delete(seduta.id); },
-      settimanaFase,
-      profilo,
-      mostraInizio: !archiviato,
-      inModifica: inModifica && !archiviato,
-      onRinomina: rinomina,
-    })));
-  }
-
-  /** Cambia solo il nome mostrato: l'id dell'esercizio, e con lui tutto lo
-      storico dei carichi, non si tocca mai. */
-  async function rinomina(esercizio, nuovoNome) {
-    const originale = esercizio.nomeOriginale || esercizio.nome;
-    const nome = String(nuovoNome || '').trim();
-    await personalizza.scrivi(
-      personalizza.chiaveEsercizio(esercizio.id),
-      nome && nome !== originale ? { nome } : null,
-    );
-    piano = await piani.piano(riferimento);
-    disegnaSedute();
-  }
-
-  disegnaSedute();
+  schermata.append(h('div.riga-sp.sch-barra', [etichetta, btnModifica]));
+  schermata.append(zonaSedute);
 
   /* --- altri piani -------------------------------------------- */
 
-  const altri = await bloccoAltriPiani();
-  if (altri) schermata.append(altri);
+  schermata.append(await bloccoAltriPiani());
 }
 
 /* ---------- pezzi --------------------------------------- */
@@ -171,30 +163,27 @@ function bloccoRegole(piano) {
 
 function bloccoSeduta(seduta, opzioni) {
   const {
-    oggi, aperta, onApri, settimanaFase, profilo, mostraInizio,
+    numero, settimanaFase, profilo, mostraInizio, fatta,
   } = opzioni;
-  const giornoNome = GIORNI[seduta.giorno] || '';
 
   const summary = h('summary', [
     h('div', [
-      h('p.occhiello', giornoNome + (oggi ? ' · oggi' : '')),
+      h('p.occhiello', `Allenamento ${numero}`),
       h('p.titolo-2', seduta.nome),
       seduta.sottotitolo ? h('p.nota', { style: 'margin-top:2px' }, seduta.sottotitolo) : null,
+      fatta,
     ]),
   ]);
 
   const corpo = h('div.corpo', [
     bloccoFase('Riscaldamento', seduta.riscaldamento),
-    elencoEsercizi(seduta.esercizi, settimanaFase, profilo, opzioni),
+    elencoEsercizi(seduta.esercizi, settimanaFase, profilo),
     bloccoFase('Scarico', seduta.scarico),
     mostraInizio ? h('a.btn.btn-primo', { href: `#/sessione/${seduta.id}`, style: 'margin-top:8px' },
-      oggi ? 'Inizia allenamento' : 'Inizia questa seduta') : null,
+      'Inizia questo allenamento') : null,
   ].filter(Boolean));
 
-  return h(oggi ? 'details.piega.sch-oggi' : 'details.piega', {
-    open: aperta ?? oggi,
-    ontoggle: (ev) => onApri?.(ev.target.open),
-  }, [summary, corpo]);
+  return h('details.piega', [summary, corpo]);
 }
 
 function bloccoFase(etichetta, fase) {
@@ -206,14 +195,14 @@ function bloccoFase(etichetta, fase) {
 }
 
 /** L'ol degli esercizi, con le superserie raggruppate visivamente. */
-function elencoEsercizi(esercizi, settimanaFase, profilo, opzioni) {
+function elencoEsercizi(esercizi, settimanaFase, profilo) {
   const gruppi = raggruppaSuperserie(esercizi || []);
   const voci = [];
   gruppi.forEach((gruppo) => {
     const inSuperserie = gruppo.length > 1;
     gruppo.forEach((e, i) => {
       voci.push(elementoEsercizio(
-        e, settimanaFase, profilo, inSuperserie, i === 0, i === gruppo.length - 1, opzioni,
+        e, settimanaFase, profilo, inSuperserie, i === 0, i === gruppo.length - 1,
       ));
     });
   });
@@ -243,7 +232,7 @@ function raggruppaSuperserie(esercizi) {
   return gruppi;
 }
 
-function elementoEsercizio(e, settimanaFase, profilo, inSuperserie, primo, ultimo, opzioni = {}) {
+function elementoEsercizio(e, settimanaFase, profilo, inSuperserie, primo, ultimo) {
   const n = piani.serieDi(e, settimanaFase);
   const vuoto = n === 0;
 
@@ -254,7 +243,7 @@ function elementoEsercizio(e, settimanaFase, profilo, inSuperserie, primo, ultim
     e.gruppo ? h('span.tag', piani.nomeGruppo(e.gruppo)) : null,
   ].filter(Boolean)));
   if (e.varianteFacile && profilo === 'corinna') {
-    corpo.push(h('p.sch-variante', `Variante: ${e.varianteFacile}`));
+    corpo.push(h('p.sch-variante', `Variante per Corinna: ${e.varianteFacile}`));
   }
 
   let nota;
@@ -277,34 +266,7 @@ function elementoEsercizio(e, settimanaFase, profilo, inSuperserie, primo, ultim
     if (ultimo) sel += '.sch-ss-ultimo';
   }
 
-  const li = h(sel, [h('span.cresci', corpo)]);
-  if (opzioni.inModifica && opzioni.onRinomina) {
-    li.append(bottoneModifica(
-      () => apriModificaEsercizio(li, e, opzioni.onRinomina),
-      `Cambia il nome di ${e.nome}`,
-    ));
-  }
-  return li;
-}
-
-/** Sostituisce il contenuto della riga con il riquadro di modifica, e lo
-    rimette com'era se si annulla. */
-function apriModificaEsercizio(li, e, onRinomina) {
-  const originale = e.nomeOriginale || e.nome;
-  const comEra = [...li.childNodes];
-  const chiudi = () => li.replaceChildren(...comEra);
-
-  const azioni = e.personalizzato
-    ? [{ etichetta: 'Rimetti quello del piano', onClick: () => onRinomina(e, originale) }]
-    : [];
-
-  li.replaceChildren(h('span.cresci', [modifica({
-    campi: [{ chiave: 'nome', etichetta: 'Nome dell’esercizio', valore: e.nome }],
-    nota: e.personalizzato ? `Nel piano si chiama “${originale}”.` : null,
-    azioni,
-    onSalva: (v) => onRinomina(e, v.nome),
-    onAnnulla: chiudi,
-  })]));
+  return h(sel, [h('span.cresci', corpo)]);
 }
 
 /** Da quale settimana della fase un esercizio a serie:0 comincia a comparire. */
@@ -331,17 +293,19 @@ function settimanaNellaFaseEff(riferimento, settimanaAssoluta) {
 async function bloccoAltriPiani() {
   const elenco = await piani.elencoPiani();
   const altri = elenco.filter((p) => !p.attivo);
-  if (!altri.length) return null;
 
   return h('details.piega', [
     h('summary', 'Altri piani'),
-    h('div.corpo', altri.map((p) => h('a.sch-riga-piano', { href: `#/scheda/${p.id}` }, [
-      h('span.cresci', [
-        h('div', p.nome),
-        h('p.nota', `Settimane ${p.settimanaDa}–${p.settimanaA}`),
-      ]),
-      h('span.nota', p.passato ? 'passato' : (p.futuro ? 'in arrivo' : '')),
-    ]))),
+    h('div.corpo', [
+      ...altri.map((p) => h('a.sch-riga-piano', { href: `#/scheda/${p.id}` }, [
+        h('span.cresci', [
+          h('div', p.nome),
+          h('p.nota', p.locale ? 'Creato dall’app' : `Settimane ${p.settimanaDa}–${p.settimanaA}`),
+        ]),
+        h('span.nota', p.passato ? 'passato' : (p.futuro ? 'in arrivo' : '')),
+      ])),
+      h('a.btn', { href: '#/modifica/nuovo', style: 'margin-top:10px;width:100%' }, '+ Crea un piano nuovo'),
+    ]),
   ]);
 }
 
@@ -352,8 +316,6 @@ const STILE = `
 .sch-badge { border: var(--bordo) solid var(--linea); padding: 4px 10px; white-space: nowrap; }
 .sch-punti { list-style: disc; margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 15px; }
 .sch-punti > li { padding: 0; }
-details.piega.sch-oggi { border-width: var(--bordo-xl); }
-details.piega.sch-oggi > summary { background: var(--ink); color: var(--paper); }
 li.sch-ss { border-left: var(--bordo-xl) solid var(--linea); padding-left: 10px; margin-left: -2px; }
 li.sch-ss:not(.sch-ss-ultimo) { border-bottom: 0; padding-bottom: 2px; }
 .sch-variante { font-size: 13px; color: var(--ink-2); margin: 2px 0 0; }

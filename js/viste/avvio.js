@@ -17,8 +17,9 @@ export async function monta(app) {
       h('p.occhiello', 'Allenamento e alimentazione'),
       h('h1.titolo', 'FitApp'),
       h('p.nota', 'I dati restano su questo telefono. Nessun account, nessun server.'),
+      h('p.nota', 'Su un telefono solo si segnano carichi e foto di tutti e due.'),
       h('hr.sep'),
-      h('p.occhiello', 'Chi sei?'),
+      h('p.occhiello', 'Di chi è questo telefono?'),
       h('div.pila', [scelta('giuseppe', 'Giuseppe'), scelta('corinna', 'Corinna')]),
     ]));
   }
@@ -29,9 +30,10 @@ export async function monta(app) {
 
     const salva = async () => {
       await store.scrivi('profilo', profilo);
+      await store.scrivi('versioneDati', 2);
       await store.scrivi('dataInizio', campoData.value || iso());
       const p = parseFloat(String(campoPeso.value).replace(',', '.'));
-      if (!Number.isNaN(p)) await store.scrivi('pesoCorporeo', p);
+      if (!Number.isNaN(p)) await store.scriviPeso(profilo, p);
       vaiA('/oggi');
       location.reload();
     };

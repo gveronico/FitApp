@@ -1,7 +1,9 @@
 /* foto.js — l'archivio fotografico mensile: uno scatto a inizio mese, stessa
    luce, stessa posizione, per vedere come cambia il corpo. Non è una misura.
    Le foto sono Blob in IndexedDB (vedi store.js) e non escono mai dal
-   telefono: nessun upload, nessuna rete, mai. */
+   telefono: nessun upload, nessuna rete, mai.
+   Ognuno ha il suo archivio: si vede quello della persona in vista, scelta in
+   cima a Progressi, e lo scatto nuovo va a lei. */
 
 import { h, meseBreve, conferma, metti } from '../ui.js';
 import * as store from '../store.js';
@@ -27,6 +29,8 @@ export async function monta(contenitore, parametri) {
 
 export async function corpo(contenitore) {
   iniettaStile();
+  const chi = await store.personaVista();
+  const nome = store.nomePersona(chi);
 
   /* elenco degli object URL creati nel giro di disegno corrente:
      revocati a inizio di ogni ridisegno e quando il contenitore esce dal DOM */
@@ -63,7 +67,7 @@ export async function corpo(contenitore) {
     // record con blob guasto (es. canvas.toBlob che ha restituito null in
     // passato): si saltano qui, una volta sola, così nessun punto che
     // costruisce un object URL deve più preoccuparsene.
-    tutte = (await store.tutteLeFoto()).filter((f) => f && f.blob instanceof Blob);
+    tutte = (await store.tutteLeFoto(chi)).filter((f) => f && f.blob instanceof Blob);
     perMese = {};
     tutte.forEach((f) => {
       if (!perMese[f.mese]) perMese[f.mese] = [];
@@ -96,11 +100,11 @@ export async function corpo(contenitore) {
         h('p', 'Una serie di scatti a inizio mese, stessa luce e stessa posizione.'),
         h('button.btn.btn-primo', {
           onclick: () => vai({ nome: 'mese', mese: meseAttuale() }),
-        }, 'Fai il primo scatto'),
+        }, `Fai il primo scatto di ${nome}`),
       ]));
     } else {
       pezzi.push(h('div.riga-sp', [
-        h('p.occhiello', 'Archivio mensile'),
+        h('p.occhiello', `Archivio di ${nome}`),
         h('button.btn.btn-s', { onclick: () => vai({ nome: 'confronto' }) }, 'Confronta'),
       ]));
       const corrente = meseAttuale();
@@ -149,7 +153,7 @@ export async function corpo(contenitore) {
     const elenco = perMese[mese] || [];
     const pezzi = [
       h('button.btn.btn-s', { onclick: () => vai({ nome: 'griglia' }) }, '← Indietro'),
-      h('p.titolo-2', { style: 'margin-top:10px' }, meseBreve(mese)),
+      h('p.titolo-2', { style: 'margin-top:10px' }, `${nome} · ${meseBreve(mese)}`),
     ];
 
     if (elenco.length) {
@@ -230,7 +234,7 @@ export async function corpo(contenitore) {
     let erroreMessaggio = null;
     try {
       const blob = await ridimensiona(file);
-      await store.salvaFoto({ id: store.nuovoId('foto'), mese, posa, blob, creata: Date.now() });
+      await store.salvaFoto({ id: store.nuovoId('foto'), persona: chi, mese, posa, blob, creata: Date.now() });
       await ricarica();
     } catch (e) {
       erroreMessaggio = String(e?.message || e) || 'Non riesco a salvare questa foto.';

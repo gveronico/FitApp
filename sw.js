@@ -9,8 +9,9 @@
    Cambiando i file dell'app va alzato VERSIONE: è l'unica manutenzione
    che questo file richiede. */
 
-const VERSIONE = 'fitapp-v3';
+const VERSIONE = 'fitapp-v6';
 const GUSCIO = `${VERSIONE}-guscio`;
+const IN_LOCALE = ['localhost', '127.0.0.1'].includes(location.hostname);
 const DATI = `${VERSIONE}-dati`;
 
 const DA_PRECARICARE = [
@@ -23,6 +24,7 @@ const DA_PRECARICARE = [
   './js/store.js',
   './js/piani.js',
   './js/personalizza.js',
+  './js/spesa.js',
   './js/backup.js',
   './js/viste/avvio.js',
   './js/viste/oggi.js',
@@ -32,6 +34,7 @@ const DA_PRECARICARE = [
   './js/viste/foto.js',
   './js/viste/cibo.js',
   './js/viste/altro.js',
+  './js/viste/modifica.js',
   './dati/indice.json',
   './dati/allenamento/2026-fase1.json',
   './dati/allenamento/2026-fase2.json',
@@ -47,8 +50,11 @@ self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(GUSCIO);
     // Uno per uno: un file mancante non deve far fallire tutta l'installazione.
+    // `reload`: i file vengono dal server, non dalla cache HTTP del browser. Senza,
+    // la versione nuova poteva nascere con dentro un file di quella vecchia.
     await Promise.all(DA_PRECARICARE.map(
-      (url) => cache.add(url).catch((err) => console.warn('non precaricato', url, err)),
+      (url) => cache.add(new Request(url, { cache: 'reload' }))
+        .catch((err) => console.warn('non precaricato', url, err)),
     ));
     self.skipWaiting();
   })());
@@ -70,6 +76,8 @@ self.addEventListener('fetch', (e) => {
 
   const url = new URL(richiesta.url);
   if (url.origin !== location.origin) return;
+  // Dal computer (localhost) niente cache: si vede sempre il file appena salvato.
+  if (IN_LOCALE) return;
 
   if (url.pathname.includes('/dati/')) {
     e.respondWith(primaLaRete(richiesta));

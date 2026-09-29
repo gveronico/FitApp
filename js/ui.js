@@ -173,6 +173,50 @@ export function bottoneModifica(onClick, etichetta = 'Modifica') {
   }, '✎');
 }
 
+/**
+ * Il segno di una seduta già fatta in settimana, da piani.statoSeduta:
+ * verde "fatta" se completa, giallo "in parte · 9/14 serie" se ridotta.
+ */
+export function segnoFatta(stato, chi = null) {
+  const prima = chi ? `${chi} · ` : '';
+  if (!stato) return h('span.segno.segno-dafare', `${prima}da fare`);
+  const f = stato.migliore;
+  const d = daIso(f.data);
+  const quando = `${GIORNI[d.getDay()].slice(0, 3)} ${d.getDate()}`;
+  if (stato.completa) {
+    const salti = f.saltati ? ` · ${f.saltati} ${f.saltati === 1 ? 'saltato' : 'saltati'}` : '';
+    return h('span.segno.segno-fatta', `${prima}✓ fatta${salti} · ${quando}`);
+  }
+  const quanto = f.previste ? ` · ${f.nSerie}/${f.previste} serie` : '';
+  return h('span.segno.segno-parte', `${prima}◐ in parte${quanto} · ${quando}`);
+}
+
+/**
+ * Lo stato di una seduta per tutte e due: un segno solo se è andata uguale,
+ * uno a testa se no. `stati` è [[nome, stato]], con stato null se non fatta.
+ * Se nessuno l'ha fatta, niente.
+ */
+export function segniFatta(stati) {
+  const fatti = stati.filter(([, s]) => s);
+  if (!fatti.length) return null;
+  const testi = stati.map(([, s]) => (s ? segnoFatta(s).textContent : ''));
+  if (stati.length === 1 || testi.every((t) => t === testi[0])) return segnoFatta(fatti[0][1]);
+  return h('div.segni', stati.map(([chi, s]) => segnoFatta(s, chi)));
+}
+
+/**
+ * Interruttore a pulsanti affiancati, uno solo acceso.
+ *   opzioni: [{ valore, etichetta }]
+ */
+export function scelta(opzioni, scelto, onScegli, etichetta = '') {
+  return h('div.scelta', { role: 'group', 'aria-label': etichetta || null },
+    opzioni.map((o) => h(o.valore === scelto ? 'button.scelta-btn.scelta-attiva' : 'button.scelta-btn', {
+      type: 'button',
+      'aria-pressed': o.valore === scelto ? 'true' : 'false',
+      onclick: () => (o.valore !== scelto ? onScegli(o.valore) : undefined),
+    }, o.etichetta)));
+}
+
 /* ---------- interazione --------------------------------- */
 
 /** Vibrazione breve, dove supportata. Silenziosa altrove. */
