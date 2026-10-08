@@ -154,7 +154,6 @@ export async function monta(contenitore, parametri) {
       ...slot, id, nome: c.nome, gruppo: c.gruppo, slotId: slot.id, alPostoDi: slot.nome,
     };
     delete out.note;
-    delete out.varianteFacile;
     return out;
   }
 
@@ -741,9 +740,6 @@ export async function monta(contenitore, parametri) {
     else if (e.saltoResto) pezzi.push(h('p.nota', `${n} serie fatte · il resto saltato`));
     if (e.saltoResto) {
       pezzi.push(h('button.btn.btn-s', { type: 'button', onclick: () => variaOggi(p, e, null) }, 'Rimetti le serie saltate'));
-    }
-    if (p.persona === 'corinna' && e.varianteFacile) {
-      pezzi.push(h('p.nota', `Variante: ${e.varianteFacile}`));
     }
 
     if (saltato(e) && !righeDi(p, e)) {

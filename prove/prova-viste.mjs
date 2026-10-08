@@ -169,6 +169,100 @@ await prova('Modifica: un esercizio nuovo con il nome di uno noto riusa il suo i
   await personalizza.azzeraTutte();
 });
 
+const FASE1 = { id: '2026-fase1', file: 'dati/allenamento/2026-fase1.json' };
+const bottoneIn = (nodo, testo) => tutti(nodo, (n) => n.tagName === 'BUTTON' && n.textContent === testo)[0];
+
+await prova('Modifica: un esercizio nuovo si sceglie per gruppo', async () => {
+  const piani = await import(`${MOD}piani.js`);
+  const app = radice();
+  await modifica.monta(app, ['2026-fase1']);
+  const aggiungi = bottoneIn(app, '+ Aggiungi un esercizio');
+  await aggiungi.scatena('click');
+  const zona = trova(aggiungi.parentNode, (n) => n.classList && n.classList.contains('mdf-modulo'));
+  assert.equal(diClasse(zona, 'mdf-scegli').length, 0, 'gli esercizi compaiono prima del gruppo');
+  await bottoneIn(zona, 'Gambe').scatena('click');
+  assert.equal(tutti(zona, (n) => n.tagName === 'SELECT')[0].value, 'gambe', 'il gruppo non passa alla tendina');
+  const scelte = diClasse(zona, 'mdf-scegli');
+  assert.ok(scelte.length, 'nessun esercizio di gambe');
+  const grezzo = await piani.pianoGrezzo(FASE1);
+  const giaDentro = grezzo.sedute[0].esercizi.map((x) => x.nome);
+  scelte.forEach((b) => assert.ok(!giaDentro.includes(b.textContent), `${b.textContent} è già nella seduta`));
+  const nome = scelte[0].textContent;
+  await scelte[0].scatena('click');
+  await conTesto(zona, 'Aggiungi').parentNode.scatena('click');
+  const dopo = (await piani.pianoGrezzo(FASE1)).sedute[0].esercizi;
+  const catalogo = await piani.catalogoEsercizi();
+  assert.equal(dopo[dopo.length - 1].id, catalogo.find((x) => x.nome === nome).id, 'non riusa l’id dell’esercizio scelto');
+  await piani.eliminaPiano(FASE1);
+  await personalizza.azzeraTutte();
+});
+
+await prova('Modifica: Cambia mette un altro esercizio al posto, o uno scritto a mano', async () => {
+  const piani = await import(`${MOD}piani.js`);
+  const prima = (await piani.pianoGrezzo(FASE1)).sedute[0].esercizi[0];
+  const app = radice();
+  await modifica.monta(app, ['2026-fase1']);
+  let riga = matite(app)[0].parentNode;
+  await matite(app)[0].scatena('click');
+  await bottoneIn(riga, 'Cambia con un altro esercizio').scatena('click');
+  // Parte dal gruppo dell'esercizio: gli altri dello stesso gruppo sono già lì.
+  const scelte = diClasse(riga, 'mdf-scegli');
+  assert.ok(scelte.length, 'il gruppo dell’esercizio non è già scelto');
+  const nome = scelte[0].textContent;
+  await scelte[0].scatena('click');
+  assert.ok(riga.textContent.includes(`al posto di ${prima.nome}`), 'non dice al posto di cosa');
+  await conTesto(riga, 'Salva').parentNode.scatena('click');
+  let e = (await piani.pianoGrezzo(FASE1)).sedute[0].esercizi[0];
+  const catalogo = await piani.catalogoEsercizi();
+  assert.equal(e.id, catalogo.find((x) => x.nome === nome).id, 'l’esercizio al posto non ha il suo id');
+  assert.equal(e.serie, prima.serie, 'le serie non sono rimaste');
+  assert.ok(app.textContent.includes(nome));
+
+  // Uno che non c'è: lo si scrive.
+  riga = matite(app)[0].parentNode;
+  await matite(app)[0].scatena('click');
+  await bottoneIn(riga, 'Cambia con un altro esercizio').scatena('click');
+  await bottoneIn(riga, 'Spalle').scatena('click');
+  trova(riga, (n) => n.tagName === 'INPUT' && n.getAttribute('aria-label') === 'Nome del nuovo esercizio').value = 'Arnold press';
+  await bottoneIn(riga, 'Usa questo').scatena('click');
+  await conTesto(riga, 'Salva').parentNode.scatena('click');
+  e = (await piani.pianoGrezzo(FASE1)).sedute[0].esercizi[0];
+  assert.equal(e.nome, 'Arnold press');
+  assert.equal(e.gruppo, 'spalle');
+  assert.equal(e.id, 'arnold-press');
+
+  // Cambia e poi Tieni: resta com'era, e il piano non si tocca.
+  riga = matite(app)[0].parentNode;
+  await matite(app)[0].scatena('click');
+  await bottoneIn(riga, 'Cambia con un altro esercizio').scatena('click');
+  await diClasse(riga, 'mdf-scegli')[0].scatena('click');
+  await bottoneIn(riga, 'Tieni Arnold press').scatena('click');
+  await conTesto(riga, 'Salva').parentNode.scatena('click');
+  assert.equal((await piani.pianoGrezzo(FASE1)).sedute[0].esercizi[0].id, 'arnold-press', 'Tieni non tiene');
+  await piani.eliminaPiano(FASE1);
+  await personalizza.azzeraTutte();
+});
+
+await prova('Scheda: Esporta dà la scheda in testo, con Copia', async () => {
+  let copiato = null;
+  globalThis.navigator.clipboard = { writeText: async (t) => { copiato = t; } };
+  const app = radice();
+  await scheda.monta(app, []);
+  await bottoneIn(app, 'Esporta').scatena('click');
+  const area = trova(app, (n) => n.tagName === 'TEXTAREA');
+  assert.ok(area, 'manca il testo');
+  const testo = area.value;
+  assert.ok(/ALLENAMENTO 1 — /.test(testo), 'mancano le sedute');
+  assert.ok(testo.includes('× 12-10-8'), 'mancano serie e ripetizioni');
+  assert.ok(testo.includes('[Petto]'), 'manca il gruppo');
+  assert.ok(testo.includes('Riscaldamento'), 'manca il riscaldamento');
+  assert.ok(!bottoneIn(app, 'Condividi'), 'Condividi compare senza navigator.share');
+  area.value = `${testo}\n\nVa bene così?`;
+  await bottoneIn(app, 'Copia').scatena('click');
+  assert.ok(copiato.endsWith('Va bene così?'), 'Copia non prende il testo ritoccato');
+  delete globalThis.navigator.clipboard;
+});
+
 /* ---------- Cibo ------------------------------------------ */
 
 await prova('Cibo: la settimana ha i pasti nuovi e nessun vincolo', async () => {

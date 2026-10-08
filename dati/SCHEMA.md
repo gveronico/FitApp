@@ -59,8 +59,7 @@ dalla `dataInizio` impostata dall'utente e sceglie il piano il cui intervallo la
           "ripMin": 10,
           "ripMax": 12,
           "recuperoSec": 90,                // sempre più di zero: ogni esercizio ha il suo recupero
-          "note": "",                       // riga sotto il nome, testo libero
-          "varianteFacile": "Goblet squat"  // per Corinna; omesso se non prevista
+          "note": ""                        // riga sotto il nome, testo libero
         }
       ]
     }

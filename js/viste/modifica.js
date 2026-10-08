@@ -8,6 +8,8 @@
    - nome e gruppo sono dell'esercizio (personalizza.js, legati all'id): valgono
      in ogni piano, ed è sul gruppo che si sommano i progressi;
    - serie, ripetizioni, recupero e note sono del piano.
+   Un esercizio si sceglie anche per gruppo, come Cambia in sessione: per
+   aggiungerne uno, o per metterne un altro al posto di uno che c'è (dal 08/10/2026).
 
    Rotte
      #/modifica/<idPiano>   modifica quel piano
@@ -322,6 +324,41 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
       });
     }
 
+    /* Scelta per gruppo, come Cambia in sessione. Per un esercizio nuovo riempie
+       nome e gruppo; per uno che c'è già ne mette un altro al posto suo, e Salva
+       lo scrive nel piano. Gli esercizi già in questa seduta non si offrono. */
+    const nellaSeduta = new Set((seduta.esercizi || []).map((x) => x.id));
+    let alPosto = false;
+    const zonaCambio = h('div.pila-s');
+    const prendi = ({ nome, gruppo }) => {
+      campoNome.value = nome;
+      campoGruppo.value = gruppo || '';
+      errore.textContent = '';
+      tocco(8);
+      if (nuovo) return;
+      alPosto = true;
+      metti(zonaCambio, [
+        h('p.nota.mdf-al-posto', `${nome} al posto di ${pz.nome || e.nome}. Lo storico dei carichi di ognuno resta suo.`),
+        h('button.btn.btn-s', {
+          type: 'button',
+          onclick: () => {
+            alPosto = false;
+            campoNome.value = pz.nome || e.nome;
+            campoGruppo.value = gruppoAttuale;
+            metti(zonaCambio, bottoneCambia);
+          },
+        }, `Tieni ${pz.nome || e.nome}`),
+      ]);
+    };
+    const bottoneCambia = h('button.btn.btn-s', {
+      type: 'button',
+      onclick: () => metti(zonaCambio, [
+        h('p.occhiello', 'Al posto di questo · scegli il gruppo'),
+        sceltaPerGruppo({ iniziale: gruppoAttuale, escludi: nellaSeduta, scriviNuovo: true, onScelta: prendi }),
+      ]),
+    }, 'Cambia con un altro esercizio');
+    if (!nuovo) metti(zonaCambio, bottoneCambia);
+
     const salvaModulo = async () => {
       const nome = campoNome.value.trim();
       if (!nome) { errore.textContent = 'Serve un nome.'; return; }
@@ -346,6 +383,19 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
         piani.applicaCambi(es, cambi);
         seduta.esercizi = [...(seduta.esercizi || []), es];
         await scriviNomeGruppo(es, nome, gruppo);
+      } else if (alPosto && (trovaNoto(nome)?.id ?? null) !== e.id) {
+        // Un altro esercizio al posto di questo: id nuovo, serie e ripetizioni dal modulo.
+        const noto = trovaNoto(nome);
+        const id = noto ? noto.id : idNuovo(nome);
+        if (seduta.esercizi.some((x) => x !== e && x.id === id)) {
+          errore.textContent = 'Questo esercizio c’è già in questa seduta.';
+          return;
+        }
+        e.id = id;
+        e.nome = noto ? noto.nomePiano : nome;
+        e.gruppo = noto ? noto.gruppoPiano : gruppo;
+        piani.applicaCambi(e, cambi);
+        await scriviNomeGruppo(e, nome, gruppo);
       } else {
         await scriviNomeGruppo(e, nome, gruppo);
         if (delPiano() === comEraNelPiano) { chiudi(); await ricarica(); return; }
@@ -369,8 +419,15 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
     azioni.push(h('button.btn.btn-s', { type: 'button', onclick: chiudi }, 'Annulla'));
 
     const modulo = h('div.mod.mdf-modulo', [
-      h('label.campo.mod-campo', [h('span.occhiello', 'Nome'), campoNome, lista]),
+      nuovo ? h('p.occhiello', 'Scegli il gruppo') : null,
+      nuovo ? sceltaPerGruppo({
+        escludi: nellaSeduta,
+        onGruppo: (g) => { campoGruppo.value = g; },
+        onScelta: prendi,
+      }) : null,
+      h('label.campo.mod-campo', [h('span.occhiello', nuovo ? 'Nome · o scrivilo tu' : 'Nome'), campoNome, lista]),
       nuovo ? h('p.nota', 'Se scegli un esercizio che hai già fatto, lo storico dei carichi continua.') : null,
+      nuovo ? null : zonaCambio,
       h('label.campo.mod-campo', [h('span.occhiello', 'Gruppo · conta nei progressi'), campoGruppo]),
       h('div.mdf-due', [
         h('label.campo.mod-campo', [h('span.occhiello', 'Serie'), campoSerie]),
@@ -385,6 +442,73 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
     ].filter(Boolean));
     requestAnimationFrame(() => { if (nuovo) campoNome.focus(); });
     return modulo;
+  }
+
+  /**
+   * I bottoni dei gruppi e, sotto, gli esercizi noti del gruppo scelto. Con
+   * `scriviNuovo` c'è anche il campo per uno che non c'è ancora. Dal 08/10/2026.
+   */
+  function sceltaPerGruppo({
+    iniziale = null, escludi, scriviNuovo = false, onGruppo, onScelta,
+  }) {
+    let gruppo = iniziale || null;
+    const zona = h('div.pila-s');
+
+    const disegnaElenco = () => {
+      if (!gruppo) { metti(zona); return; }
+      const nomeG = piani.nomeGruppo(gruppo).toLowerCase();
+      const elenco = [...noti.values()]
+        .filter((x) => x.gruppo === gruppo && !escludi.has(x.id))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+      const pezzi = [elenco.length
+        ? h('ul.lista.mdf-elenco', elenco.map((x) => h('li', [
+          h('button.mdf-scegli', { type: 'button', onclick: () => onScelta({ nome: x.nome, gruppo: x.gruppo }) }, x.nome),
+        ])))
+        : h('p.nota', `Nessun altro esercizio di ${nomeG}: ${scriviNuovo ? 'scrivilo qui sotto' : 'scrivi il nome qui sotto'}.`)];
+      if (scriviNuovo) {
+        const campoNuovo = h('input', {
+          type: 'text', placeholder: 'Nome del nuovo esercizio', 'aria-label': 'Nome del nuovo esercizio',
+        });
+        const errore = h('p.nota.rosso');
+        pezzi.push(
+          h('label.campo', [h('span.occhiello', `Non c’è? Nuovo esercizio di ${nomeG}`), campoNuovo]),
+          errore,
+          h('button.btn.btn-s', {
+            type: 'button',
+            onclick: () => {
+              const nome = campoNuovo.value.trim();
+              if (!nome) { errore.textContent = 'Scrivi il nome.'; return; }
+              onScelta({ nome, gruppo });
+            },
+          }, 'Usa questo'),
+        );
+      }
+      metti(zona, pezzi);
+    };
+
+    const bottoni = piani.GRUPPI.map((g) => h('button.scelta-btn', {
+      type: 'button',
+      'aria-pressed': 'false',
+      onclick: () => {
+        gruppo = g.id;
+        accendi();
+        tocco(8);
+        onGruppo?.(g.id);
+        disegnaElenco();
+      },
+    }, g.nome));
+    const accendi = () => bottoni.forEach((b, i) => {
+      const acceso = piani.GRUPPI[i].id === gruppo;
+      b.classList.toggle('scelta-attiva', acceso);
+      b.setAttribute('aria-pressed', acceso ? 'true' : 'false');
+    });
+    accendi();
+    disegnaElenco();
+
+    return h('div.pila-s', [
+      h('div.scelta.mdf-gruppi', { role: 'group', 'aria-label': 'Gruppo muscolare' }, bottoni),
+      zona,
+    ]);
   }
 
   /** Nome e gruppo vanno su personalizza, e solo se diversi da quel che dice il piano. */
@@ -522,6 +646,14 @@ const STILE = `
 .mdf-frecce { display: flex; gap: 4px; }
 .mdf-frecce .mod-apri[disabled] { opacity: 0.3; pointer-events: none; }
 .mdf-modulo { border-left: var(--bordo-xl) solid var(--linea); padding-left: 10px; }
+.mdf-gruppi { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
+.mdf-elenco > li { padding: 0; }
+.mdf-scegli {
+  appearance: none; width: 100%; min-height: var(--tap); padding: 0; border: 0;
+  background: none; color: inherit; font: inherit; font-weight: 700; text-align: left; cursor: pointer;
+}
+.mdf-scegli:active { background: var(--ink); color: var(--paper); }
+.mdf-al-posto { font-weight: 700; color: var(--ink); }
 .mdf-scelta { justify-content: flex-start; text-align: left; min-height: 60px; padding: 8px 12px; }
 .mdf-scelta .nota { font-weight: 400; }
 .mdf-scelta-attiva { background: var(--ink); color: var(--paper); }

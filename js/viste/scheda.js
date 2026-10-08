@@ -1,9 +1,10 @@
 /* scheda.js — la scheda di allenamento: si consulta a casa o tra una serie e
    l'altra, e si modifica qui stesso. Modifica apre l'editor (modifica.js) al
    posto dell'elenco delle sedute; Fine ridisegna la scheda con le modifiche.
+   Esporta la mette in testo, da condividere o copiare (dal 08/10/2026).
    Non registra niente — la registrazione è in sessione.js. */
 
-import { h, durata, segniFatta } from '../ui.js';
+import { h, metti, durata, segniFatta } from '../ui.js';
 import * as piani from '../piani.js';
 import * as store from '../store.js';
 import { editor } from './modifica.js';
@@ -15,8 +16,6 @@ export async function monta(contenitore, parametri) {
   const [st, chi, idx] = await Promise.all([
     piani.stato(), store.partecipanti(), piani.indice(),
   ]);
-  // La variante facile è di Corinna: si vede quando si allena anche lei.
-  const profilo = chi.includes('corinna') ? 'corinna' : chi[0];
 
   let riferimento = st.riferimento;
   let piano = st.piano;
@@ -80,7 +79,6 @@ export async function monta(contenitore, parametri) {
 
   const zonaSedute = h('div.pila', (piano.sedute || []).map((seduta, i) => bloccoSeduta(seduta, {
     numero: i + 1,
-    profilo,
     mostraInizio: !archiviato,
     fatta: segniFatta(fatte.map(([nome, f]) => [nome, piani.statoSeduta(f, seduta.id)])),
   })));
@@ -96,6 +94,8 @@ export async function monta(contenitore, parametri) {
         return;
       }
       btnModifica.textContent = 'Fine';
+      btnEsporta.classList.add('nascondi');
+      metti(zonaEsporta);
       schermata.classList.remove('solo-lettore');
       etichetta.textContent = 'Modifica · si salva a ogni Salva';
       await editor(zonaSedute, riferimento);
@@ -103,7 +103,19 @@ export async function monta(contenitore, parametri) {
   }, 'Modifica');
   const etichetta = h('p.occhiello', archiviato ? 'Sedute' : 'Sedute della settimana');
 
-  schermata.append(h('div.riga-sp.sch-barra', [etichetta, btnModifica]));
+  /* Esporta: la scheda come testo, da condividere o copiare. Si può ritoccare
+     prima di mandarla, per aggiungere una domanda a chi la guarda. */
+  const zonaEsporta = h('div');
+  const btnEsporta = h('button.btn.btn-s', {
+    type: 'button',
+    onclick: () => {
+      if (zonaEsporta.childNodes.length) { metti(zonaEsporta); return; }
+      metti(zonaEsporta, bloccoEsporta(testoScheda(riferimento, piano), () => metti(zonaEsporta)));
+    },
+  }, 'Esporta');
+
+  schermata.append(h('div.riga-sp.sch-barra', [etichetta, h('div.btn-riga.sch-azioni', [btnEsporta, btnModifica])]));
+  schermata.append(zonaEsporta);
   schermata.append(zonaSedute);
 
   /* --- altri piani -------------------------------------------- */
@@ -147,7 +159,7 @@ function bloccoRegole(piano) {
 
 function bloccoSeduta(seduta, opzioni) {
   const {
-    numero, profilo, mostraInizio, fatta,
+    numero, mostraInizio, fatta,
   } = opzioni;
 
   const summary = h('summary', [
@@ -162,7 +174,7 @@ function bloccoSeduta(seduta, opzioni) {
   const corpo = h('div.corpo', [
     bloccoFase('Riscaldamento', seduta.riscaldamento),
     h('ol.lista.lista-num', { style: 'margin:10px 0' },
-      (seduta.esercizi || []).map((e) => elementoEsercizio(e, profilo))),
+      (seduta.esercizi || []).map((e) => elementoEsercizio(e))),
     bloccoFase('Scarico', seduta.scarico),
     mostraInizio ? h('a.btn.btn-primo', { href: `#/sessione/${seduta.id}`, style: 'margin-top:8px' },
       'Inizia questo allenamento') : null,
@@ -179,7 +191,7 @@ function bloccoFase(etichetta, fase) {
   ]);
 }
 
-function elementoEsercizio(e, profilo) {
+function elementoEsercizio(e) {
   let nota = `${e.serie} × ${e.rip}`;
   if (e.recuperoSec) nota += ` · rec ${durata(e.recuperoSec)}`;
 
@@ -188,12 +200,86 @@ function elementoEsercizio(e, profilo) {
       h('span', e.nome),
       e.gruppo ? h('span.tag', piani.nomeGruppo(e.gruppo)) : null,
     ].filter(Boolean)),
-    e.varianteFacile && profilo === 'corinna'
-      ? h('p.sch-variante', `Variante per Corinna: ${e.varianteFacile}`)
-      : null,
     h('p.nota', nota),
     e.note ? h('p.nota', e.note) : null,
   ].filter(Boolean))]);
+}
+
+/* ---------- esporta come testo --------------------------- */
+
+/**
+ * La scheda in testo semplice, da leggere su WhatsApp o in una mail: piano,
+ * regole, e per ogni seduta riscaldamento, esercizi e scarico. Dal 08/10/2026.
+ */
+export function testoScheda(riferimento, piano) {
+  const righe = [`${riferimento.nome || piano.nome || 'Scheda'}`];
+  if (riferimento.settimanaDa) righe.push(`Settimane ${riferimento.settimanaDa}–${riferimento.settimanaA}`);
+  if (piano.allenamentiDaSettimana) righe.push(testoFrequenza(piano.allenamentiDaSettimana));
+
+  if ((piano.regole || []).length) {
+    righe.push('', 'REGOLE');
+    piano.regole.forEach((r) => righe.push(`- ${r}`));
+  }
+
+  const fase = (etichetta, f) => {
+    if (!f || !(f.voci || []).length) return;
+    righe.push(`${etichetta}${f.minuti ? ` (${f.minuti} min)` : ''}:`);
+    f.voci.forEach((v) => righe.push(`  - ${v}`));
+  };
+
+  (piano.sedute || []).forEach((s, i) => {
+    righe.push('', `ALLENAMENTO ${i + 1} — ${s.nome}${s.sottotitolo ? ` (${s.sottotitolo})` : ''}`);
+    fase('Riscaldamento', s.riscaldamento);
+    (s.esercizi || []).forEach((e, j) => {
+      let r = `${j + 1}. ${e.nome}`;
+      if (e.gruppo) r += ` [${piani.nomeGruppo(e.gruppo)}]`;
+      r += ` — ${e.serie} × ${e.rip}`;
+      if (e.recuperoSec) r += `, recupero ${durata(e.recuperoSec)}`;
+      righe.push(r);
+      if (e.note) righe.push(`   ${e.note}`);
+    });
+    fase('Scarico', s.scarico);
+  });
+
+  return righe.join('\n');
+}
+
+function bloccoEsporta(testo, chiudi) {
+  const area = h('textarea.sch-testo', { value: testo, 'aria-label': 'La scheda come testo' });
+  const stato = h('p.nota', { style: 'min-height:18px' });
+  const avvisa = (t) => { stato.textContent = t; setTimeout(() => { stato.textContent = ''; }, 2500); };
+
+  const copia = async () => {
+    try {
+      await navigator.clipboard.writeText(area.value);
+      avvisa('Copiata: incollala dove vuoi.');
+    } catch {
+      area.select?.();
+      avvisa('Non riesco a copiarla da solo: tieni premuto sul testo e copia.');
+    }
+  };
+
+  const azioni = [];
+  if (navigator.share) {
+    azioni.push(h('button.btn.btn-s.btn-primo', {
+      type: 'button',
+      onclick: async () => {
+        try { await navigator.share({ title: 'Scheda', text: area.value }); } catch { /* annullata */ }
+      },
+    }, 'Condividi'));
+  }
+  azioni.push(
+    h('button.btn.btn-s', { type: 'button', onclick: copia }, 'Copia'),
+    h('button.btn.btn-s', { type: 'button', onclick: chiudi }, 'Chiudi'),
+  );
+
+  return h('div.blocco.pila', [
+    h('p.occhiello', 'La scheda come testo'),
+    h('p.nota', 'Puoi scriverci sopra prima di mandarla, per esempio una domanda per chi la guarda.'),
+    area,
+    h('div.btn-riga', azioni),
+    stato,
+  ]);
 }
 
 async function bloccoAltriPiani() {
@@ -222,9 +308,10 @@ const STILE = `
 .sch-badge { border: var(--bordo) solid var(--linea); padding: 4px 10px; white-space: nowrap; }
 .sch-punti { list-style: disc; margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 15px; }
 .sch-punti > li { padding: 0; }
-.sch-variante { font-size: 13px; color: var(--ink-2); margin: 2px 0 0; }
 .sch-nome { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .sch-barra { min-height: 38px; }
+.sch-azioni { flex: none; }
+.sch-testo { min-height: 260px; font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
 .sch-riga-piano {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   min-height: var(--tap); padding: 10px 0; border-bottom: 1px solid var(--linea-2);

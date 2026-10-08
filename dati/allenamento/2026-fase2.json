@@ -110,8 +110,7 @@
           "ripMin": 6,
           "ripMax": 8,
           "recuperoSec": 150,
-          "note": "",
-          "varianteFacile": "Goblet squat, squat al multipower, box squat"
+          "note": ""
         },
         {
           "id": "pressa-45",
@@ -133,8 +132,7 @@
           "ripMin": 8,
           "ripMax": 10,
           "recuperoSec": 90,
-          "note": "",
-          "varianteFacile": "Military press con manubri, seduto"
+          "note": ""
         },
         {
           "id": "leg-extension",
@@ -209,8 +207,7 @@
           "ripMin": 8,
           "ripMax": 10,
           "recuperoSec": 120,
-          "note": "",
-          "varianteFacile": "Panca inclinata con manubri"
+          "note": ""
         },
         {
           "id": "curl-manubri",
@@ -263,8 +260,7 @@
           "ripMin": 5,
           "ripMax": 5,
           "recuperoSec": 180,
-          "note": "",
-          "varianteFacile": "Stacco con trap bar, o stacco da rialzo"
+          "note": ""
         },
         {
           "id": "affondi-indietro-manubri",
@@ -275,8 +271,7 @@
           "ripMin": 10,
           "ripMax": 10,
           "recuperoSec": 90,
-          "note": "",
-          "varianteFacile": "Affondi sul posto, o step up su panca"
+          "note": ""
         },
         {
           "id": "leg-curl",
