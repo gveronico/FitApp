@@ -267,6 +267,16 @@ await prova('Progressi: il blocco per gruppo muscolare compare e filtra', async 
   assert.ok(testo.includes('Per gruppo muscolare'), 'manca il blocco per gruppo');
   assert.ok(testo.includes('Braccia') && testo.includes('Petto'));
   assert.ok(testo.includes('+25,0%') && testo.includes('+20,0%'), `percentuali mancanti: ${testo}`);
+  assert.ok(testo.includes('volume 320 → 400'), 'manca il volume della panca');
+  assert.ok(testo.includes('max 50 kg × 8 · nuovo'), 'manca il carico massimo della panca');
+  assert.ok(!/pari ripetizioni/.test(testo), 'parla ancora di ripetizioni fisse');
+
+  // Il dettaglio: volume, carico massimo e grafico.
+  await tutti(app, (n) => n.classList && n.classList.contains('pro-riga'))
+    .find((n) => n.textContent.includes('Panca piana con manubri')).scatena('click');
+  const dettaglio = app.textContent;
+  assert.ok(dettaglio.includes('Volume iniziale') && dettaglio.includes('Carico massimo'), dettaglio.slice(0, 300));
+  await conTesto(app, '← Indietro').parentNode.scatena('click');
 
   // Tocco "Braccia": resta solo il curl nell'elenco degli esercizi.
   const riga = tutti(app, (n) => n.classList && n.classList.contains('pro-riga'))

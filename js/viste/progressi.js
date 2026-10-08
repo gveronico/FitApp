@@ -1,4 +1,5 @@
-/* progressi.js — quanto si è saliti di carico, a ripetizioni fisse.
+/* progressi.js — quanto si è cresciuti, esercizio per esercizio: il volume
+   (carico × ripetizioni, tutte le serie) e il carico massimo sollevato.
    Due sotto-schede: Carichi (qui) e Foto (in foto.js, montata a parte).
    In cima, di chi: Giuseppe o Corinna. Tutte e due le sotto-schede leggono i
    dati della persona in vista (store.personaVista), e la scelta resta. */
@@ -195,24 +196,30 @@ export async function corpoCarichi(contenitore) {
    ================================================================ */
 
 /**
- * Da tutte le serie registrate, calcola l'incremento per esercizio.
+ * Da tutte le serie registrate, i progressi per esercizio. Dal 08/10/2026 si
+ * misurano in **volume**, non più col carico a ripetizioni fisse.
  *   - Solo serie che contano (vedi contaNeiCalcoli), carico finito > 0,
  *     ripetizioni finite > 0.
  *   - `monitorati` è l'insieme degli id dei piani monitorati: senza, decide il
  *     flag `monitorata` scritto sulla serie.
- *   - Per ogni data, il carico di riferimento è il massimo carico di quella
- *     giornata; le ripetizioni associate sono il massimo tra le serie che
- *     hanno quel carico massimo.
- *   - Incremento = (attuale - iniziale) / iniziale * 100, tra prima e ultima data.
- *   - Se le rip dell'ultima data sono minori di quelle della prima, il
- *     progresso non si conteggia (conteggiato: false) ma resta calcolato.
+ *   - Per ogni data, il volume è la somma di carico × ripetizioni di tutte le
+ *     serie di quel giorno su quell'esercizio: 24 kg × 12 + 26 kg × 10 = 548.
+ *     Più carico, più ripetizioni o più serie: il volume sale.
+ *   - Incremento = (volume attuale - volume iniziale) / volume iniziale * 100,
+ *     tra prima e ultima data.
+ *   - In parallelo il **massimo**: il carico più alto mai sollevato, con le sue
+ *     ripetizioni e il giorno della prima volta. A pari carico vince chi ha
+ *     fatto più ripetizioni.
  *   - Un esercizio con una sola data è "in attesa": nessun incremento ancora.
  *
  * Ritorna { esercizi, media, inAttesa }.
  *   esercizi: [{ esercizioId, punti, iniziale, attuale, incrementoPercento,
- *                conteggiato, inAttesa, sedutaId }]
- *   punti: [{ data, carico, ripetizioni, sedutaId }] ordinati per data
- *   media: media semplice degli incrementi conteggiabili, o null se nessuno
+ *                massimo, massimoNuovo, inAttesa, sedutaId }]
+ *   punti: [{ data, volume, serie, carico, ripetizioni, sedutaId }] ordinati per
+ *          data; `carico` e `ripetizioni` sono quelli della serie più pesante
+ *   massimo: { carico, ripetizioni, data }
+ *   massimoNuovo: il massimo è stato superato l'ultima volta
+ *   media: media semplice degli incrementi, o null se nessuno
  *   inAttesa: quanti esercizi hanno una sola data
  */
 export function calcolaIncrementi(serie, monitorati = null) {
@@ -237,32 +244,47 @@ export function calcolaIncrementi(serie, monitorati = null) {
       const delGiorno = perData.get(data);
       const caricoMax = Math.max(...delGiorno.map((s) => s.carico));
       const ripMax = Math.max(...delGiorno.filter((s) => s.carico === caricoMax).map((s) => s.ripetizioni));
-      return { data, carico: caricoMax, ripetizioni: ripMax, sedutaId: delGiorno[0].sedutaId };
+      const volume = +delGiorno.reduce((t, s) => t + s.carico * s.ripetizioni, 0).toFixed(2);
+      return {
+        data, volume, serie: delGiorno.length, carico: caricoMax, ripetizioni: ripMax, sedutaId: delGiorno[0].sedutaId,
+      };
     });
 
     const iniziale = punti[0];
     const attuale = punti[punti.length - 1];
     const inAttesa = punti.length < 2;
+    const incrementoPercento = inAttesa ? null : ((attuale.volume - iniziale.volume) / iniziale.volume) * 100;
 
-    let incrementoPercento = null;
-    let conteggiato = false;
-    if (!inAttesa) {
-      incrementoPercento = ((attuale.carico - iniziale.carico) / iniziale.carico) * 100;
-      conteggiato = attuale.ripetizioni >= iniziale.ripetizioni;
-    }
+    // Il primo giorno in cui si è arrivati al carico più alto, con più ripetizioni.
+    const meglio = (a, b) => b.carico > a.carico || (b.carico === a.carico && b.ripetizioni > a.ripetizioni);
+    const massimo = punti.reduce((m, p) => (meglio(m, p) ? p : m), punti[0]);
+    const primaDiOggi = punti.slice(0, -1).reduce((m, p) => (!m || meglio(m, p) ? p : m), null);
 
     esercizi.push({
-      esercizioId, punti, iniziale, attuale, incrementoPercento, conteggiato, inAttesa,
+      esercizioId,
+      punti,
+      iniziale,
+      attuale,
+      incrementoPercento,
+      massimo: { carico: massimo.carico, ripetizioni: massimo.ripetizioni, data: massimo.data },
+      massimoNuovo: !inAttesa && massimo === attuale && meglio(primaDiOggi, attuale),
+      inAttesa,
       sedutaId: attuale.sedutaId,
     });
   });
 
-  const conteggiabili = esercizi.filter((e) => !e.inAttesa && e.conteggiato);
-  const media = conteggiabili.length
-    ? conteggiabili.reduce((acc, e) => acc + e.incrementoPercento, 0) / conteggiabili.length
+  const contati = esercizi.filter((e) => !e.inAttesa);
+  const media = contati.length
+    ? contati.reduce((acc, e) => acc + e.incrementoPercento, 0) / contati.length
     : null;
 
   return { esercizi, media, inAttesa: esercizi.filter((e) => e.inAttesa).length };
+}
+
+/** 1080 -> '1.080'. Il volume si legge a numeri interi. */
+export function volume(kg) {
+  if (kg == null || Number.isNaN(kg)) return '–';
+  return String(Math.round(kg)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
 /**
@@ -276,12 +298,12 @@ export function contaNeiCalcoli(s, monitorati = null) {
 }
 
 /**
- * Media degli incrementi per gruppo muscolare — braccia, gambe, dorso,
+ * Media degli incrementi di volume per gruppo muscolare — braccia, gambe, dorso,
  * petto, spalle, addome. È la divisione con cui si guardano i progressi.
- * Entrano solo gli esercizi conteggiabili, come nella media generale.
+ * Entrano gli esercizi fatti almeno due volte, come nella media generale.
  */
 export function aggregaPerGruppo(esercizi, gruppi) {
-  const conteggiabili = (esercizi || []).filter((e) => !e.inAttesa && e.conteggiato);
+  const conteggiabili = (esercizi || []).filter((e) => !e.inAttesa);
 
   const per = new Map();
   conteggiabili.forEach((e) => {
@@ -399,7 +421,7 @@ function bloccoMedia(media, elenco, st) {
   }
   return h('div.blocco.blocco-pieno', [
     h('p.cifra.cifra-xl', percento(media)),
-    h('p.occhiello', { style: 'margin-top:4px' }, 'dal primo allenamento'),
+    h('p.occhiello', { style: 'margin-top:4px' }, 'di volume dal primo allenamento'),
   ]);
 }
 
@@ -414,29 +436,29 @@ function listaEsercizi(esercizi, nomiEsercizi, onSeleziona) {
   return h('ul.lista', ordinati.map((e) => {
     const nome = nomiEsercizi.get(e.esercizioId) || e.esercizioId;
 
+    const max = h(e.massimoNuovo ? 'p.nota.verde' : 'p.nota',
+      `max ${peso(e.massimo.carico)} kg × ${e.massimo.ripetizioni}${e.massimoNuovo ? ' · nuovo' : ''}`);
+
     if (e.inAttesa) {
       return h('li', [h('button.pro-riga', { onclick: () => onSeleziona(e.esercizioId) }, [
         h('span.cresci', [
           h('div', nome),
-          h('p.nota', `${peso(e.iniziale.carico)} kg`),
+          h('p.nota', `volume ${volume(e.iniziale.volume)}`),
+          max,
         ]),
         h('span.spento', 'in attesa'),
       ])]);
     }
 
     let classeColore = 'spento';
-    if (e.conteggiato) {
-      if (e.incrementoPercento > 0) classeColore = 'verde';
-      else if (e.incrementoPercento < 0) classeColore = 'rosso';
-    }
+    if (e.incrementoPercento > 0) classeColore = 'verde';
+    else if (e.incrementoPercento < 0) classeColore = 'rosso';
 
     return h('li', [h('button.pro-riga', { onclick: () => onSeleziona(e.esercizioId) }, [
       h('span.cresci', [
         h('div', nome),
-        h('p.nota', `${peso(e.iniziale.carico)} → ${peso(e.attuale.carico)} kg`),
-        !e.conteggiato
-          ? h('p.nota', `non a pari ripetizioni · ${e.iniziale.ripetizioni} → ${e.attuale.ripetizioni} rip`)
-          : null,
+        h('p.nota', `volume ${volume(e.iniziale.volume)} → ${volume(e.attuale.volume)}`),
+        max,
       ]),
       h(`span.${classeColore}`, percento(e.incrementoPercento)),
     ])]);
@@ -444,7 +466,7 @@ function listaEsercizi(esercizi, nomiEsercizi, onSeleziona) {
 }
 
 function bloccoPerSeduta(esercizi, nomiSedute) {
-  const conteggiabili = esercizi.filter((e) => !e.inAttesa && e.conteggiato);
+  const conteggiabili = esercizi.filter((e) => !e.inAttesa);
   if (!conteggiabili.length) return null;
 
   const gruppi = new Map();
@@ -472,29 +494,33 @@ function bloccoPerSeduta(esercizi, nomiSedute) {
 function vistaDettaglio(e, serieGrezze, nomiEsercizi, onIndietro, onElimina, conta) {
   const nome = nomiEsercizi.get(e.esercizioId) || e.esercizioId;
 
+  const colore = e.incrementoPercento > 0 ? 'verde' : e.incrementoPercento < 0 ? 'rosso' : 'spento';
   const righeIncremento = e.inAttesa
     ? [h('p.nota', 'In attesa di una seconda registrazione.')]
-    : [h(`p.cifra.cifra-s.${e.conteggiato ? (e.incrementoPercento > 0 ? 'verde' : e.incrementoPercento < 0 ? 'rosso' : 'spento') : 'spento'}`,
-      percento(e.incrementoPercento)),
-    !e.conteggiato
-      ? h('p.nota', `Non a pari ripetizioni: ${e.iniziale.ripetizioni} → ${e.attuale.ripetizioni} rip.`)
-      : null];
+    : [h(`p.cifra.cifra-s.${colore}`, percento(e.incrementoPercento)), h('p.nota', 'di volume dal primo allenamento')];
 
+  const giorno = (p) => `${p.serie} serie · ${formattaDataBreve(p.data)}`;
   const blocco = h('div.blocco', [
     h('div.riga-sp', [
       h('div', [
-        h('p.occhiello', 'Iniziale'),
-        h('p.titolo-2', `${peso(e.iniziale.carico)} kg`),
-        h('p.nota', `${e.iniziale.ripetizioni} rip · ${formattaDataBreve(e.iniziale.data)}`),
+        h('p.occhiello', 'Volume iniziale'),
+        h('p.titolo-2', volume(e.iniziale.volume)),
+        h('p.nota', giorno(e.iniziale)),
       ]),
       h('div', { style: 'text-align:right' }, [
-        h('p.occhiello', 'Attuale'),
-        h('p.titolo-2', `${peso(e.attuale.carico)} kg`),
-        h('p.nota', `${e.attuale.ripetizioni} rip · ${formattaDataBreve(e.attuale.data)}`),
+        h('p.occhiello', 'Volume attuale'),
+        h('p.titolo-2', volume(e.attuale.volume)),
+        h('p.nota', giorno(e.attuale)),
       ]),
     ]),
     h('hr.sep', { style: 'margin:12px 0' }),
     ...righeIncremento,
+    h('hr.sep', { style: 'margin:12px 0' }),
+    h('p.occhiello', 'Carico massimo'),
+    h(e.massimoNuovo ? 'p.titolo-2.verde' : 'p.titolo-2', `${peso(e.massimo.carico)} kg × ${e.massimo.ripetizioni}`),
+    h('p.nota', e.massimoNuovo
+      ? `Nuovo massimo, ${formattaDataBreve(e.massimo.data)}.`
+      : `La prima volta il ${formattaDataBreve(e.massimo.data)}.`),
   ]);
 
   return [
@@ -510,18 +536,18 @@ function graficoSvg(punti) {
   if (punti.length < 2) {
     const p = punti[0];
     return h('p.nota', { style: 'margin-top:4px' },
-      `Un solo punto: ${peso(p.carico)} kg il ${formattaDataBreve(p.data)}.`);
+      `Un solo punto: volume ${volume(p.volume)} il ${formattaDataBreve(p.data)}.`);
   }
 
   const W = 320;
   const H = 120;
-  const PAD_S = 30; // sinistra, per le etichette del carico
+  const PAD_S = 34; // sinistra, per le etichette del volume
   const PAD_D = 8;
   const PAD_A = 12;
   const PAD_B = 12;
   const RIGA_DATE = 20; // striscia sotto per le etichette delle date
 
-  const carichi = punti.map((p) => p.carico);
+  const carichi = punti.map((p) => p.volume);
   const min = Math.min(...carichi);
   const max = Math.max(...carichi);
   const scala = max === min ? 0 : (H - PAD_A - PAD_B) / (max - min);
@@ -529,18 +555,18 @@ function graficoSvg(punti) {
   const coordX = (i) => PAD_S + (i * (W - PAD_S - PAD_D)) / (punti.length - 1);
   const coordY = (v) => (max === min ? H - PAD_B - (H - PAD_A - PAD_B) / 2 : H - PAD_B - (v - min) * scala);
 
-  const percorso = punti.map((p, i) => `${i === 0 ? 'M' : 'L'} ${coordX(i).toFixed(1)} ${coordY(p.carico).toFixed(1)}`).join(' ');
+  const percorso = punti.map((p, i) => `${i === 0 ? 'M' : 'L'} ${coordX(i).toFixed(1)} ${coordY(p.volume).toFixed(1)}`).join(' ');
 
   const lato = 6;
   const quadrati = punti.map((p, i) => {
     const x = coordX(i);
-    const y = coordY(p.carico);
+    const y = coordY(p.volume);
     return `<rect x="${(x - lato / 2).toFixed(1)}" y="${(y - lato / 2).toFixed(1)}" width="${lato}" height="${lato}" fill="currentColor" />`;
   }).join('');
 
   const svg = `<svg viewBox="0 0 ${W} ${H + RIGA_DATE}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:160px">
-    <text x="0" y="${(coordY(max) + 3).toFixed(1)}" font-size="10" fill="currentColor">${peso(max)}</text>
-    <text x="0" y="${(coordY(min) + 3).toFixed(1)}" font-size="10" fill="currentColor">${peso(min)}</text>
+    <text x="0" y="${(coordY(max) + 3).toFixed(1)}" font-size="10" fill="currentColor">${volume(max)}</text>
+    <text x="0" y="${(coordY(min) + 3).toFixed(1)}" font-size="10" fill="currentColor">${volume(min)}</text>
     <path d="${percorso}" stroke="currentColor" fill="none" stroke-width="2" />
     ${quadrati}
     <text x="${PAD_S}" y="${H + 15}" font-size="10" fill="currentColor">${formattaDataBreve(punti[0].data)}</text>
@@ -564,7 +590,9 @@ function storicoEsercizio(esercizioId, serieGrezze, onElimina, conta) {
     ...date.map((data) => {
       const voci = [...perData.get(data)].sort((a, b) => (a.indice ?? 0) - (b.indice ?? 0));
       return h('div.pila-s', { style: 'margin-bottom:12px' }, [
-        h('p.nota', formattaDataBreve(data)),
+        h('p.nota', `${formattaDataBreve(data)} · volume ${volume(voci
+          .filter((s) => conta(s) && s.carico > 0 && s.ripetizioni > 0)
+          .reduce((t, s) => t + s.carico * s.ripetizioni, 0))}`),
         h('ul.lista', voci.map((s) => h('li', { class: conta(s) ? null : 'spento' }, [
           h('span.cresci', [
             h('div', `${peso(s.carico)} × ${s.ripetizioni ?? '–'}`),

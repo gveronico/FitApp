@@ -171,7 +171,7 @@ await prova('Fase 1 è monitorata, e le sue serie vecchie contano lo stesso', as
   const e = progressi.calcolaIncrementi(serie, monitorati).esercizi[0];
   assert.ok(e, 'lo squat non entra nel calcolo');
   assert.equal(e.incrementoPercento, 25);
-  assert.equal(e.conteggiato, true);
+  assert.deepEqual(e.massimo, { carico: 50, ripetizioni: 8, data: '2026-09-29' });
   assert.equal(progressi.calcolaIncrementi(serie).esercizi[0].inAttesa, true,
     'senza l’elenco dei piani vale ancora il flag della serie');
 });
@@ -439,21 +439,52 @@ await prova('gli incrementi si aggregano per gruppo muscolare', () => {
     s('alzate-laterali', '2026-11-01', 10, 12),
     s('curl-manubri', '2026-10-01', 10, 10),         // braccia       +20%
     s('curl-manubri', '2026-11-01', 12, 10),
-    s('leg-curl', '2026-10-01', 30, 12),             // gambe, a meno rip: non conta
-    s('leg-curl', '2026-11-01', 40, 8),
+    s('leg-curl', '2026-10-01', 30, 12),             // gambe: più carico, meno volume
+    s('leg-curl', '2026-11-01', 40, 8),              // 360 -> 320
   ];
 
   const calcolo = progressi.calcolaIncrementi(serie);
   const gruppi = new Map(tuttiEsercizi.map((e) => [e.id, e.gruppo]));
   const righe = progressi.aggregaPerGruppo(calcolo.esercizi, gruppi);
 
-  assert.deepEqual(righe.map((r) => r.gruppo), ['braccia', 'petto', 'spalle'],
+  assert.deepEqual(righe.map((r) => r.gruppo), ['braccia', 'gambe', 'petto', 'spalle'],
     'ordine dei gruppi o filtro sbagliati');
   assert.equal(righe.find((r) => r.gruppo === 'braccia').media, 20);
   assert.equal(righe.find((r) => r.gruppo === 'petto').media, 37.5);
   assert.equal(righe.find((r) => r.gruppo === 'petto').quanti, 2);
   assert.equal(righe.find((r) => r.gruppo === 'spalle').media, 25);
-  assert.ok(!righe.some((r) => r.gruppo === 'gambe'), 'il leg curl a meno rip non va contato');
+  assert.ok(Math.abs(righe.find((r) => r.gruppo === 'gambe').media - (-100 / 9)) < 1e-9,
+    'il leg curl: più carico ma meno volume, quindi scende');
+});
+
+await prova('progressi: volume di tutte le serie, e in parallelo il carico massimo', () => {
+  const s = (data, carico, ripetizioni, indice) => ({
+    esercizioId: 'panca-piana-manubri', data, carico, ripetizioni, indice, monitorata: true, sedutaId: 'upper-a',
+  });
+  const serie = [
+    s('2026-10-01', 20, 12, 0), s('2026-10-01', 22, 10, 1), s('2026-10-01', 24, 8, 2),  // 240+220+192 = 652
+    s('2026-10-08', 24, 12, 0), s('2026-10-08', 24, 10, 1), s('2026-10-08', 24, 8, 2),  // 288+240+192 = 720
+  ];
+  let e = progressi.calcolaIncrementi(serie).esercizi[0];
+  assert.equal(e.iniziale.volume, 652);
+  assert.equal(e.attuale.volume, 720);
+  assert.equal(e.attuale.serie, 3);
+  assert.ok(Math.abs(e.incrementoPercento - (68 / 652) * 100) < 1e-9);
+  // Stesso carico più alto, ma 12 ripetizioni invece di 8: è un massimo nuovo.
+  assert.deepEqual(e.massimo, { carico: 24, ripetizioni: 12, data: '2026-10-08' });
+  assert.equal(e.massimoNuovo, true);
+  // Rifatto uguale: non è più nuovo.
+  assert.equal(progressi.calcolaIncrementi([...serie, s('2026-10-09', 24, 12, 0)]).esercizi[0].massimoNuovo, false);
+
+  // Una serie in meno abbassa il volume anche col carico più alto, ma il massimo sale.
+  serie.push(s('2026-10-15', 26, 10, 0), s('2026-10-15', 26, 8, 1));                  // 260+208 = 468
+  e = progressi.calcolaIncrementi(serie).esercizi[0];
+  assert.equal(e.attuale.volume, 468);
+  assert.ok(e.incrementoPercento < 0);
+  assert.deepEqual(e.massimo, { carico: 26, ripetizioni: 10, data: '2026-10-15' });
+  assert.equal(e.massimoNuovo, true);
+  assert.equal(progressi.volume(1080), '1.080');
+  assert.equal(progressi.volume(652.4), '652');
 });
 
 
