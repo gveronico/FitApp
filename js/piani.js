@@ -1,13 +1,16 @@
 /* piani.js — legge i piani e dice a che punto del programma siamo.
 
    Tre strati, dal basso:
-   1. i file in dati/, scritti da Claude. Di sola lettura: qui non si scrivono mai;
-   2. le copie sul telefono (`piano:<id>` in impostazioni). Un piano del repo
-      modificato dall'app diventa una copia intera, con la firma del file da cui
-      è partita: se Claude poi cambia quel file, l'app se ne accorge e chiede
-      quale tenere. Un piano creato dall'app esiste solo come copia (`locale`);
+   1. i file in dati/. Di sola lettura: qui non si scrivono mai;
+   2. le copie sul telefono (`piano:<id>` in impostazioni). Un piano cambiato
+      dal telefono diventa una copia intera, e da lì in poi vale quella: il
+      telefono vale quanto il repo, e non si chiede niente (dal 05/10/2026).
+      Un piano creato dal telefono esiste solo come copia (`locale`);
    3. personalizza.js, che applica nome e gruppo di ogni esercizio e le
       modifiche al cibo. Si applica a ogni lettura, su una copia.
+
+   Accanto ai piani, il catalogo degli esercizi: quelli dei piani più quelli
+   creati dal telefono, da cui si sceglie con Cambia in sessione.
 
    La cache tiene il JSON com'è nel repo. */
 
@@ -29,21 +32,12 @@ async function prendi(percorso) {
 
 const clona = (x) => JSON.parse(JSON.stringify(x));
 
-/** Firma breve di un JSON: basta a dire se il file nel repo è cambiato. */
-export function firma(dati) {
-  const t = JSON.stringify(dati);
-  let h = 5381;
-  for (let i = 0; i < t.length; i += 1) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
-  return `${t.length.toString(36)}-${h.toString(36)}`;
-}
-
 /* ---------- copie sul telefono ---------------------------- */
 
 /**
  * copia = {
  *   piano,                 // il piano intero, com'è dopo le modifiche
- *   base: string|null,     // firma del file del repo da cui è partita; null se locale
- *   locale: bool,          // creato dall'app: nel repo non esiste
+ *   locale: bool,          // creato dal telefono: nel repo non esiste
  *   meta: { settimanaDa, settimanaA, monitorata },   // solo per i locali
  *   modificato: ms
  * }
@@ -66,7 +60,7 @@ export async function indice() {
   const [idx, salvate] = await Promise.all([prendi('dati/indice.json'), copie()]);
   const allenamento = idx.allenamento.map((r) => {
     const c = salvate.get(r.id);
-    return c && !c.locale ? { ...r, nome: c.piano.nome || r.nome, modificato: true } : r;
+    return c && !c.locale ? { ...r, nome: c.piano.nome || r.nome } : r;
   });
   salvate.forEach((c, id) => {
     if (!c.locale) return;
@@ -86,39 +80,23 @@ export async function indice() {
 /** Il piano com'è da leggere: copia se c'è, altrimenti il file; sopra, le personalizzazioni. */
 export async function piano(riferimento) {
   const [grezzo] = await Promise.all([pianoGrezzo(riferimento), personalizza.carica()]);
-  return personalizza.applica(grezzo);
+  return aggiornaVecchio(personalizza.applica(grezzo));
 }
 
 /** Il piano senza personalizzazioni, da modificare. Sempre una copia nuova. */
 export async function pianoGrezzo(riferimento) {
   const copia = riferimento?.id ? await leggiCopia(riferimento.id) : null;
-  if (copia) return clona(copia.piano);
+  if (copia) return aggiornaVecchio(clona(copia.piano));
   if (!riferimento?.file) throw new Error('Questo piano non esiste più.');
   return clona(await prendi(riferimento.file));
 }
 
-/**
- * Come sta la copia rispetto al repo.
- *   { copia: bool, locale: bool, repoCambiato: bool }
- * repoCambiato: Claude ha aggiornato il file dopo che il piano è stato modificato qui.
- */
-export async function statoCopia(riferimento) {
-  const copia = riferimento?.id ? await leggiCopia(riferimento.id) : null;
-  if (!copia) return { copia: false, locale: false, repoCambiato: false };
-  if (copia.locale || !riferimento.file) return { copia: true, locale: true, repoCambiato: false };
-  const repo = await prendi(riferimento.file);
-  return { copia: true, locale: false, repoCambiato: !!copia.base && copia.base !== firma(repo) };
-}
-
-/** Salva il piano modificato. La firma di partenza resta quella della prima modifica. */
+/** Salva il piano modificato. */
 export async function salvaPiano(riferimento, pianoNuovo) {
   const prima = await leggiCopia(riferimento.id);
   const locale = prima ? !!prima.locale : !riferimento.file;
-  let base = prima ? prima.base : null;
-  if (!locale && !base) base = firma(await prendi(riferimento.file));
   await store.scrivi(PREFISSO_COPIA + riferimento.id, {
     piano: clona(pianoNuovo),
-    base: locale ? null : base,
     locale,
     meta: prima?.meta || null,
     modificato: Date.now(),
@@ -132,34 +110,12 @@ export async function salvaMeta(riferimento, meta) {
   await store.scrivi(PREFISSO_COPIA + riferimento.id, { ...prima, meta: { ...prima.meta, ...meta } });
 }
 
-/** Butta la copia: torna il piano del repo. Per un piano creato dall'app vuol dire eliminarlo. */
-export async function ripristinaPiano(riferimento) {
+/** Butta la copia. Per un piano creato dal telefono vuol dire eliminarlo. */
+export async function eliminaPiano(riferimento) {
   await store.cancella(PREFISSO_COPIA + riferimento.id);
   if (riferimento.locale && await store.leggi('pianoAttivo') === riferimento.id) {
     await store.scrivi('pianoAttivo', null);
   }
-}
-
-/** Tiene la copia anche se il repo è cambiato: la firma si aggiorna e l'avviso sparisce. */
-export async function tieniCopia(riferimento) {
-  const prima = await leggiCopia(riferimento.id);
-  if (!prima || prima.locale) return;
-  await store.scrivi(PREFISSO_COPIA + riferimento.id, { ...prima, base: firma(await prendi(riferimento.file)) });
-}
-
-/** Quante copie di piani del repo ci sono: contano come "modifiche ai piani". */
-export async function quanteCopie() {
-  let n = 0;
-  (await copie()).forEach((c) => { if (!c.locale) n += 1; });
-  return n;
-}
-
-/** Via tutte le copie dei piani del repo. I piani creati dall'app restano. */
-export async function azzeraCopie() {
-  const salvate = await copie();
-  const via = [...salvate.entries()].filter(([, c]) => !c.locale).map(([id]) => id);
-  await Promise.all(via.map((id) => store.cancella(PREFISSO_COPIA + id)));
-  return via.length;
 }
 
 /**
@@ -176,16 +132,12 @@ export async function creaPiano({ nome, da = null, settimanaDa = 1, settimane = 
       nome,
       fonte: 'app',
       regole: [],
-      progressione: {
-        tipo: 'doppia',
-        descrizione: 'Si resta sullo stesso carico finché si completa il numero alto di ripetizioni in tutte le serie. Poi si sale.',
-      },
       sedute: [nuovaSeduta([])],
     };
   nuovo.monitorata = true;
   const meta = { settimanaDa, settimanaA: settimanaDa + settimane - 1, monitorata: true };
   await store.scrivi(PREFISSO_COPIA + id, {
-    piano: nuovo, base: null, locale: true, meta, modificato: Date.now(),
+    piano: nuovo, locale: true, meta, modificato: Date.now(),
   });
   return { id, file: null, locale: true, nome, ...meta };
 }
@@ -225,12 +177,67 @@ export function applicaCambi(esercizio, cambi) {
   return esercizio;
 }
 
+/* ---------- catalogo degli esercizi ------------------------ */
+
+/* Gli esercizi che si possono scegliere quando se ne cambia uno in sessione:
+   quelli di tutti i piani, più quelli creati dal telefono. Un esercizio creato
+   dal telefono vive in impostazioni come `esercizio:<id>` (senza `pz:`), e così
+   entra nel backup. L'id non cambia mai: è quello a cui si legano le serie.
+   Dal 08/10/2026. */
+const PREFISSO_ESERCIZIO = 'esercizio:';
+
+/**
+ * [{ id, nome, gruppo, recuperoSec }], ordinati per gruppo e per nome. Di un
+ * esercizio che compare in più piani vale la prima volta che si incontra, con
+ * nome e gruppo personalizzati sopra.
+ */
+export async function catalogoEsercizi() {
+  const [idx, tutte] = await Promise.all([indice(), store.leggiTutte()]);
+  const out = new Map();
+  for (const r of idx.allenamento) {
+    let p;
+    try { p = await piano(r); } catch { continue; }
+    (p.sedute || []).forEach((s) => (s.esercizi || []).forEach((e) => {
+      if (!out.has(e.id)) out.set(e.id, { id: e.id, nome: e.nome, gruppo: e.gruppo || null, recuperoSec: e.recuperoSec });
+    }));
+  }
+  for (const [k, v] of Object.entries(tutte)) {
+    if (!k.startsWith(PREFISSO_ESERCIZIO) || !v || !v.locale) continue;
+    const id = k.slice(PREFISSO_ESERCIZIO.length);
+    if (out.has(id)) continue;
+    const pz = personalizza.leggi(personalizza.chiaveEsercizio(id)) || {};
+    out.set(id, {
+      id, nome: pz.nome || v.nome || id, gruppo: pz.gruppo || v.gruppo || null, recuperoSec: v.recuperoSec ?? 90,
+    });
+  }
+  return [...out.values()].sort((a, b) => ordineGruppo(a.gruppo) - ordineGruppo(b.gruppo)
+    || a.nome.localeCompare(b.nome, 'it'));
+}
+
+/**
+ * Un esercizio nuovo, creato dal telefono. Se nel catalogo ce n'è già uno con
+ * lo stesso nome si riusa quello: stesso id, e lo storico continua.
+ */
+export async function creaEsercizio({ nome, gruppo, recuperoSec = 90 }) {
+  const t = String(nome || '').trim();
+  if (!t) return null;
+  const s = personalizza.slug(t);
+  const gia = (await catalogoEsercizi()).find((e) => personalizza.slug(e.nome) === s);
+  if (gia) return gia;
+  const id = `app-${s || 'esercizio'}-${Date.now().toString(36)}`;
+  const record = {
+    locale: true, nome: t, gruppo: gruppo || null, recuperoSec, creato: Date.now(),
+  };
+  await store.scrivi(PREFISSO_ESERCIZIO + id, record);
+  return { id, nome: t, gruppo: record.gruppo, recuperoSec };
+}
+
 /* ---------- ripetizioni scritte a mano --------------------- */
 
 /**
  * Dal testo digitato ai campi del piano.
  *   "10"        -> 10 fisse
- *   "8-10"      -> range, per la doppia progressione
+ *   "8-10"      -> range: si sale di carico quando si chiude al numero alto
  *   "12-10-8"   -> un numero per serie (ripSerie). Anche "10-8": due numeri
  *                  che scendono non sono un range
  * null se il testo non si capisce.
@@ -262,15 +269,43 @@ export function testoRip(esercizio) {
 
 /* ---------- gruppi muscolari ------------------------------ */
 
-/* Il tag `gruppo` di ogni esercizio. Sono quattro più l'addome: è la divisione
-   con cui si guardano i progressi, non una classificazione anatomica. */
+/* Il tag `gruppo` di ogni esercizio: è la divisione con cui si guardano i
+   progressi, non una classificazione anatomica. Le spinte su panca, anche
+   inclinata, sono petto; le spinte sopra la testa e le alzate sono spalle. */
 export const GRUPPI = [
   { id: 'braccia', nome: 'Braccia', nota: 'Bicipiti e tricipiti' },
   { id: 'gambe', nome: 'Gambe', nota: '' },
   { id: 'dorso', nome: 'Dorso', nota: '' },
-  { id: 'petto-spalle', nome: 'Petto e spalle', nota: '' },
+  { id: 'petto', nome: 'Petto', nota: '' },
+  { id: 'spalle', nome: 'Spalle', nota: '' },
   { id: 'addome', nome: 'Addome', nota: '' },
 ];
+
+/* Una copia fatta sul telefono prima del 05/10/2026 può avere ancora quello che
+   oggi non c'è più. Si sistema a ogni lettura, senza chiedere:
+   - `petto-spalle` si smista dal nome dell'esercizio;
+   - il primo esercizio di una superserie aveva recupero 0: prende quello del
+     compagno, così il timer riparte;
+   - i campi tolti (superserie, tipo di carico, incremento, progressione) spariscono,
+     e alla prima modifica la copia si salva pulita. */
+const DA_SPALLE = /military|lento|alzat|face pull|arnold|spalle/i;
+const CAMPI_TOLTI = ['superserie', 'carico', 'caricoAlternativo', 'incrementoKg', 'serieDaSettimana'];
+
+function aggiornaVecchio(p) {
+  if (!p) return p;
+  delete p.progressione;
+  (p.sedute || []).forEach((s) => (s.esercizi || []).forEach((e, i, tutti) => {
+    if (e.gruppo === 'petto-spalle') e.gruppo = DA_SPALLE.test(e.nome || '') ? 'spalle' : 'petto';
+    if (e.superserie != null && !e.recuperoSec) {
+      const compagno = tutti.slice(i + 1).find((x) => x.superserie === e.superserie && x.recuperoSec);
+      e.recuperoSec = compagno ? compagno.recuperoSec : 60;
+    }
+  }));
+  (p.sedute || []).forEach((s) => (s.esercizi || []).forEach((e) => {
+    CAMPI_TOLTI.forEach((k) => delete e[k]);
+  }));
+  return p;
+}
 
 const NOMI_GRUPPO = new Map(GRUPPI.map((g) => [g.id, g.nome]));
 
@@ -363,28 +398,18 @@ export async function stato(quando = new Date()) {
   };
 }
 
-/** Il valore in vigore in una settimana, da una scala { "<da settimana>": valore }. */
-function daScala(base, scala, settimanaNellaFase) {
-  let n = base;
-  if (scala && settimanaNellaFase) {
+/** Quanti allenamenti prevede la settimana: `allenamentiDaSettimana`
+    ({ "<da settimana>": quanti }) se c'è, altrimenti uno per seduta. */
+export function allenamentiPrevisti(piano, settimanaNellaFase) {
+  let n = (piano?.sedute || []).length;
+  const scala = piano?.allenamentiDaSettimana;
+  if (scala) {
     const voci = Object.entries(scala).sort((a, b) => Number(a[0]) - Number(b[0]));
-    for (const [da, valore] of voci) {
-      if (settimanaNellaFase >= Number(da)) n = valore;
+    for (const [da, quanti] of voci) {
+      if ((settimanaNellaFase || 1) >= Number(da)) n = quanti;
     }
   }
   return n;
-}
-
-/** Serie effettive di un esercizio nella settimana data (gestisce serieDaSettimana). */
-export function serieDi(esercizio, settimanaNellaFase) {
-  return daScala(esercizio.serie, esercizio.serieDaSettimana, settimanaNellaFase);
-}
-
-/** Quanti allenamenti prevede la settimana: `allenamentiDaSettimana` se c'è,
-    altrimenti uno per seduta. */
-export function allenamentiPrevisti(piano, settimanaNellaFase) {
-  const base = (piano?.sedute || []).length;
-  return daScala(base, piano?.allenamentiDaSettimana, settimanaNellaFase || 1);
 }
 
 /**
@@ -463,40 +488,6 @@ export function ripAttese(esercizio, i) {
   const scala = esercizio && esercizio.ripSerie;
   if (!Array.isArray(scala) || !scala.length) return null;
   return scala[Math.min(i, scala.length - 1)] ?? null;
-}
-
-/**
- * Carico reale da registrare, dato quello che l'utente digita.
- *   esterno      -> il numero così com'è
- *   assistito    -> pesoCorporeo − assistenza
- *   corpoLibero  -> pesoCorporeo + zavorra
- */
-export function caricoReale(esercizio, digitato, pesoCorporeo) {
-  const n = Number(digitato);
-  if (Number.isNaN(n)) return null;
-  const pc = Number(pesoCorporeo);
-  if (esercizio.carico === 'assistito') return Number.isNaN(pc) ? null : +(pc - n).toFixed(2);
-  if (esercizio.carico === 'corpoLibero') return Number.isNaN(pc) ? null : +(pc + n).toFixed(2);
-  return n;
-}
-
-/** L'inverso: dal carico registrato al numero che l'utente vede nel campo. */
-export function caricoDigitato(esercizio, reale, pesoCorporeo) {
-  if (reale == null) return null;
-  const pc = Number(pesoCorporeo);
-  if (esercizio.carico === 'assistito') return Number.isNaN(pc) ? null : +(pc - reale).toFixed(2);
-  if (esercizio.carico === 'corpoLibero') return Number.isNaN(pc) ? null : +(reale - pc).toFixed(2);
-  return reale;
-}
-
-/** Etichetta del campo carico, diversa a seconda del tipo. */
-export function etichettaCarico(esercizio) {
-  switch (esercizio.carico) {
-    case 'assistito': return 'Assistenza';
-    case 'corpoLibero': return 'Zavorra';
-    case 'tempo': return 'Carico';
-    default: return 'Carico';
-  }
 }
 
 /** Tutti i piani di allenamento, attivo per primo. */

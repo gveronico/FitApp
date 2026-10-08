@@ -9,7 +9,7 @@
    Cambiando i file dell'app va alzato VERSIONE: è l'unica manutenzione
    che questo file richiede. */
 
-const VERSIONE = 'fitapp-v6';
+const VERSIONE = 'fitapp-v6-2';
 const GUSCIO = `${VERSIONE}-guscio`;
 const IN_LOCALE = ['localhost', '127.0.0.1'].includes(location.hostname);
 const DATI = `${VERSIONE}-dati`;

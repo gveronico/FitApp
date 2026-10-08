@@ -22,7 +22,6 @@ const personalizza = await import(`${MOD}personalizza.js`);
 
 // Un profilo e una data di inizio, altrimenti le viste mostrano gli avvisi.
 await store.scrivi('profilo', 'giuseppe');
-await store.scrivi('pesoCorporeo', 80);
 await store.scrivi('dataInizio', '2026-09-21');
 // Le prove di prima sono di una persona sola; quelle in due stanno in fondo.
 await store.scrivi('partecipanti', ['giuseppe']);
@@ -54,6 +53,10 @@ function tutti(nodo, ok, fuori = []) {
 const conTesto = (nodo, testo) => trova(nodo, (n) => n.childNodes.length === 0
   && String(n.textContent).includes(testo));
 
+const diClasse = (nodo, classe) => tutti(nodo, (n) => n.classList && n.classList.contains(classe));
+const tasto = (app, t) => diClasse(app, 'ses-tasto').find((n) => n.textContent === t);
+const riquadro = (app, chi) => tutti(app, (n) => n.tagName === 'SECTION' && n.dataset?.persona === chi)[0];
+
 /* ---------- Oggi ------------------------------------------ */
 
 await prova('Oggi si monta e non nomina più allergie o vincoli', async () => {
@@ -71,7 +74,9 @@ await prova('Scheda mostra i tag di gruppo e il 12-10-8', async () => {
   await scheda.monta(app, []);
   const testo = app.textContent;
   assert.ok(testo.includes('3 × 12-10-8'), 'le serie non sono 3 × 12-10-8');
-  assert.ok(testo.includes('PETTO E SPALLE') || testo.includes('Petto e spalle'), 'manca il tag di gruppo');
+  assert.ok(testo.includes('Petto') && testo.includes('Spalle'), 'manca il tag di gruppo');
+  assert.ok(!testo.includes('Petto e spalle'), 'petto e spalle sono ancora un gruppo solo');
+  assert.ok(!/superserie/i.test(testo), 'la scheda parla ancora di superserie');
   const tag = tutti(app, (n) => n.classList && n.classList.contains('tag'));
   assert.ok(tag.length >= 20, `tag di gruppo trovati: ${tag.length}`);
   assert.ok(!/ellittica|cyclette|rowing/i.test(testo), 'il riscaldamento nomina ancora il cardio');
@@ -97,8 +102,7 @@ await prova('Scheda: si modifica lì dentro, e Fine mostra la scheda cambiata', 
   const fine = tutti(app, (n) => n.tagName === 'BUTTON' && n.textContent === 'Fine')[0];
   await fine.scatena('click');
   assert.ok(app.textContent.includes('Panca in Scheda'), 'dopo Fine la scheda non mostra il nome nuovo');
-  const pianiMod = await import(`${MOD}piani.js`);
-  assert.equal(await pianiMod.quanteCopie(), 0, 'cambiare solo il nome ha creato una copia del piano');
+  assert.ok((await store.leggi('piano:2026-fase1')) == null, 'cambiare solo il nome ha creato una copia del piano');
   assert.ok(tutti(app, (n) => n.tagName === 'BUTTON' && n.textContent === 'Modifica').length, 'dopo Fine non si torna alla lettura');
   await personalizza.azzeraTutte();
 });
@@ -113,8 +117,11 @@ await prova('Modifica: nome, gruppo e serie di un esercizio, dall’interfaccia'
   const riga = matita.parentNode;
   await matita.scatena('click');
 
+  assert.ok(!/Si sale di|Come si carica|Superserie/i.test(riga.textContent),
+    'il modulo ha ancora incremento, tipo di carico o superserie');
   const campi = tutti(riga, (n) => n.tagName === 'INPUT');
   const select = tutti(riga, (n) => n.tagName === 'SELECT');
+  assert.equal(select.length, 1, 'oltre al gruppo c’è un’altra tendina');
   campi[0].value = 'Panca, la mia';            // nome
   select[0].value = 'braccia';                  // gruppo
   campi[1].value = '4';                         // serie
@@ -147,7 +154,18 @@ await prova('Modifica: un esercizio nuovo con il nome di uno noto riusa il suo i
   const ultimi = p.sedute[0].esercizi.map((x) => x.id);
   assert.equal(ultimi[ultimi.length - 1], 'leg-curl', `id sbagliato: ${ultimi}`);
 
-  await piani.ripristinaPiano({ id: '2026-fase1', file: 'dati/allenamento/2026-fase1.json' });
+  // Il piano cambiato dal telefono è la scheda e basta: niente avvisi, niente "piano di Claude".
+  await store.scrivi('piano:2026-fase1', { ...(await store.leggi('piano:2026-fase1')), base: 'firma-vecchia' });
+  const nelEditor = radice();
+  await modifica.monta(nelEditor, ['2026-fase1']);
+  const nellaScheda = radice();
+  await scheda.monta(nellaScheda, []);
+  [nelEditor, nellaScheda].forEach((schermo) => {
+    assert.ok(!/Claude|Rimetti|Quale tieni|cambiato dall/i.test(schermo.textContent),
+      'si parla ancora del piano originale');
+  });
+
+  await piani.eliminaPiano({ id: '2026-fase1', file: 'dati/allenamento/2026-fase1.json' });
   await personalizza.azzeraTutte();
 });
 
@@ -247,7 +265,7 @@ await prova('Progressi: il blocco per gruppo muscolare compare e filtra', async 
   await progressi.corpoCarichi(app);
   const testo = app.textContent;
   assert.ok(testo.includes('Per gruppo muscolare'), 'manca il blocco per gruppo');
-  assert.ok(testo.includes('Braccia') && testo.includes('Petto e spalle'));
+  assert.ok(testo.includes('Braccia') && testo.includes('Petto'));
   assert.ok(testo.includes('+25,0%') && testo.includes('+20,0%'), `percentuali mancanti: ${testo}`);
 
   // Tocco "Braccia": resta solo il curl nell'elenco degli esercizi.
@@ -443,6 +461,75 @@ await prova('Sessione: Salta sugli ultimi esercizi, e l’allenamento risulta fa
   assert.ok(/✓ fatta · \d+ saltati/.test(oggiApp.textContent), 'Oggi non segna la seduta fatta con salti');
 });
 
+await prova('Sessione: Cambia sceglie il gruppo, poi un esercizio del catalogo o uno nuovo', async () => {
+  const app = radice();
+  await sessione.monta(app, ['lower-b']);
+  const titolo = () => trova(app, (n) => n.tagName === 'H2').textContent;
+  const bottone = (testo) => tutti(app, (n) => n.tagName === 'BUTTON' && n.textContent === testo)[0];
+  /** La prima serie: 20 kg × 8 dal tastierino, poi Fatta. */
+  const primaSerie = async () => {
+    await diClasse(app, 'ses-campo')[0].scatena('click');
+    for (const t of ['⌫', '⌫', '⌫', '2', '0']) await tasto(app, t).scatena('click');
+    await diClasse(app, 'ses-campo')[1].scatena('click');
+    for (const t of ['⌫', '⌫', '8']) await tasto(app, t).scatena('click');
+    await diClasse(app, 'ses-fatta')[0].scatena('click');
+  };
+  const primo = titolo();
+
+  // Prima il gruppo: senza, non c'è niente da scegliere.
+  await bottone('Cambia').scatena('click');
+  assert.ok(app.textContent.includes('Cambia esercizio'), 'il riquadro Cambia non si apre');
+  assert.equal(diClasse(app, 'ses-scegli').length, 0, 'gli esercizi compaiono prima del gruppo');
+  await bottone('Dorso').scatena('click');
+  const scelte = diClasse(app, 'ses-scegli').map((n) => n.textContent);
+  assert.ok(scelte.length >= 2, `esercizi di dorso: ${scelte}`);
+  const catalogo = await piani.catalogoEsercizi();
+  scelte.forEach((nome) => assert.equal(catalogo.find((e) => e.nome === nome)?.gruppo, 'dorso', nome));
+
+  // Se ne sceglie uno, poi lo si rimette com'era.
+  await diClasse(app, 'ses-scegli')[0].scatena('click');
+  assert.equal(titolo(), scelte[0]);
+  assert.ok(app.textContent.includes(`Oggi al posto di ${primo}`), 'non dice al posto di cosa');
+  await bottone('Cambia').scatena('click');
+  await bottone(`Rimetti ${primo}`).scatena('click');
+  assert.equal(titolo(), primo, 'Rimetti non torna all’esercizio della scheda');
+
+  // Di nuovo, e la serie si salva sull'esercizio fatto davvero.
+  await bottone('Cambia').scatena('click');
+  await bottone('Dorso').scatena('click');
+  await diClasse(app, 'ses-scegli')[0].scatena('click');
+  const idScelto = catalogo.find((e) => e.nome === scelte[0]).id;
+  await primaSerie();
+  const ses = await store.sessioneAperta();
+  assert.equal(ses.sostituzioni[Object.keys(ses.sostituzioni)[0]], idScelto);
+  const salvate = await store.serieDiSessione(ses.id);
+  assert.ok(salvate.length && salvate.every((s) => s.esercizioId === idScelto), 'la serie non è sull’esercizio scelto');
+  assert.ok(bottone('Cambia').classList.contains('nascondi'), 'Cambia resta dopo la prima serie');
+
+  // Il secondo: un esercizio nuovo, di spalle.
+  await bottone('Avanti').scatena('click');
+  await bottone('Cambia').scatena('click');
+  await bottone('Spalle').scatena('click');
+  const campo = trova(app, (n) => n.tagName === 'INPUT' && n.getAttribute('aria-label') === 'Nome del nuovo esercizio');
+  campo.value = 'Arnold press';
+  await bottone('Crea e usa').scatena('click');
+  assert.equal(titolo(), 'Arnold press');
+  const nuovo = (await piani.catalogoEsercizi()).find((e) => e.nome === 'Arnold press');
+  assert.ok(nuovo && nuovo.gruppo === 'spalle' && nuovo.id.startsWith('app-arnold-press-'), JSON.stringify(nuovo));
+  await primaSerie();
+
+  // Chiuso l'allenamento, la seduta conta e il riepilogo dice cosa è cambiato.
+  await bottone('Chiudi allenamento').scatena('click');
+  await bottone('Salta quello che manca e chiudi').scatena('click');
+  assert.ok(app.textContent.includes(`(al posto di ${primo})`), 'il riepilogo non dice cosa è cambiato');
+
+  // In Progressi l'esercizio nuovo ha il suo nome, non l'id.
+  const pro = radice();
+  await progressi.monta(pro, []);
+  assert.ok(pro.textContent.includes('Arnold press'), 'Progressi non conosce l’esercizio nuovo');
+  assert.ok(!pro.textContent.includes(nuovo.id), 'Progressi mostra l’id');
+});
+
 await prova('Cibo: una voce nuova nella spesa', async () => {
   const app = radice();
   await cibo.monta(app, ['spesa']);
@@ -474,8 +561,6 @@ await prova('Cibo: il reparto di una voce si cambia, e dice da dove viene', asyn
 
 /* ---------- In due: Giuseppe segna anche per Corinna ------------ */
 
-const diClasse = (nodo, classe) => tutti(nodo, (n) => n.classList && n.classList.contains(classe));
-const riquadro = (app, chi) => tutti(app, (n) => n.tagName === 'SECTION' && n.dataset?.persona === chi)[0];
 
 await prova('In due: Oggi fa scegliere chi si allena, e la scelta resta', async () => {
   const app = radice();
@@ -486,7 +571,6 @@ await prova('In due: Oggi fa scegliere chi si allena, e la scelta resta', async 
 });
 
 await prova('In due: la sessione ha un riquadro a testa, ognuno col suo storico', async () => {
-  await store.scriviPeso('corinna', 60);
   const app = radice();
   await sessione.monta(app, ['upper-a']);
   const g = riquadro(app, 'giuseppe');
@@ -555,6 +639,33 @@ await prova('In due: si chiude insieme, e il riepilogo è di tutti e due', async
   const oggiApp = radice();
   await oggi.monta(oggiApp);
   assert.ok(/Giuseppe · ✓ fatta|✓ fatta/.test(oggiApp.textContent), 'Oggi non segna Upper A');
+});
+
+await prova('In due: Cambia vale per tutti e due', async () => {
+  const app = radice();
+  await sessione.monta(app, ['lower-a']);
+  const bottone = (testo) => tutti(app, (n) => n.tagName === 'BUTTON' && n.textContent === testo)[0];
+  await bottone('Cambia').scatena('click');
+  assert.ok(app.textContent.includes('per tutti e due'));
+  await bottone('Gambe').scatena('click');
+  const nome = diClasse(app, 'ses-scegli')[0].textContent;
+  await diClasse(app, 'ses-scegli')[0].scatena('click');
+  assert.equal(trova(app, (n) => n.tagName === 'H2').textContent, nome);
+  for (const chi of ['giuseppe', 'corinna']) {
+    await diClasse(riquadro(app, chi), 'ses-campo')[1].scatena('click');
+    for (const t of ['⌫', '⌫', '8']) await tasto(app, t).scatena('click');
+    await diClasse(riquadro(app, chi), 'ses-fatta')[0].scatena('click');
+  }
+
+  const id = (await piani.catalogoEsercizi()).find((e) => e.nome === nome).id;
+  for (const chi of ['giuseppe', 'corinna']) {
+    const [s] = (await store.sessioni(chi)).filter((x) => x.sedutaId === 'lower-a' && x.data === iso() && !x.finita);
+    assert.ok(Object.values(s.sostituzioni).includes(id), `${chi}: sostituzione non salvata`);
+    const serie = await store.serieDiSessione(s.id);
+    assert.ok(serie.length && serie.every((x) => x.esercizioId === id), `${chi}: serie sull’esercizio sbagliato`);
+  }
+  await bottone('Chiudi allenamento').scatena('click');
+  await bottone('Salta quello che manca e chiudi').scatena('click');
 });
 
 await prova('In due: Progressi mostra i dati della persona scelta', async () => {

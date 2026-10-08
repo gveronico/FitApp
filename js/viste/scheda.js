@@ -3,7 +3,7 @@
    posto dell'elenco delle sedute; Fine ridisegna la scheda con le modifiche.
    Non registra niente — la registrazione è in sessione.js. */
 
-import { h, metti, durata, segniFatta } from '../ui.js';
+import { h, durata, segniFatta } from '../ui.js';
 import * as piani from '../piani.js';
 import * as store from '../store.js';
 import { editor } from './modifica.js';
@@ -69,20 +69,10 @@ export async function monta(contenitore, parametri) {
 
   schermata.append(rigaStato(riferimento, piano));
 
-  const statoCopia = await piani.statoCopia(riferimento);
-  if (statoCopia.repoCambiato) {
-    schermata.append(h('div.fascia.fascia-avviso', [
-      'Claude ha aggiornato questo piano dopo le tue modifiche. ',
-      h('a', { href: `#/modifica/${riferimento.id}`, style: 'color:inherit' }, 'Scegli quale tenere →'),
-    ]));
-  }
-
   const regole = bloccoRegole(piano);
   if (regole) schermata.append(regole);
 
   /* --- le quattro sedute ------------------------------------ */
-
-  const settimanaFase = settimanaNellaFaseEff(riferimento, st.settimana);
 
   const fatte = archiviato ? [] : await Promise.all(chi.map(async (p) => [
     store.nomePersona(p), await piani.fatteInSettimana(st.dataInizio, new Date(), null, p),
@@ -90,7 +80,6 @@ export async function monta(contenitore, parametri) {
 
   const zonaSedute = h('div.pila', (piano.sedute || []).map((seduta, i) => bloccoSeduta(seduta, {
     numero: i + 1,
-    settimanaFase,
     profilo,
     mostraInizio: !archiviato,
     fatta: segniFatta(fatte.map(([nome, f]) => [nome, piani.statoSeduta(f, seduta.id)])),
@@ -148,22 +137,17 @@ function testoFrequenza(scala) {
 
 function bloccoRegole(piano) {
   const regole = piano.regole || [];
-  if (!regole.length && !piano.progressione) return null;
+  if (!regole.length) return null;
 
   return h('details.piega', [
     h('summary', 'Regole della fase'),
-    h('div.corpo', [
-      regole.length ? h('ul.sch-punti', regole.map((r) => h('li', r))) : null,
-      piano.progressione
-        ? h('p.nota', { style: 'margin-top:10px' }, piano.progressione.descrizione)
-        : null,
-    ].filter(Boolean)),
+    h('div.corpo', [h('ul.sch-punti', regole.map((r) => h('li', r)))]),
   ]);
 }
 
 function bloccoSeduta(seduta, opzioni) {
   const {
-    numero, settimanaFase, profilo, mostraInizio, fatta,
+    numero, profilo, mostraInizio, fatta,
   } = opzioni;
 
   const summary = h('summary', [
@@ -177,7 +161,8 @@ function bloccoSeduta(seduta, opzioni) {
 
   const corpo = h('div.corpo', [
     bloccoFase('Riscaldamento', seduta.riscaldamento),
-    elencoEsercizi(seduta.esercizi, settimanaFase, profilo),
+    h('ol.lista.lista-num', { style: 'margin:10px 0' },
+      (seduta.esercizi || []).map((e) => elementoEsercizio(e, profilo))),
     bloccoFase('Scarico', seduta.scarico),
     mostraInizio ? h('a.btn.btn-primo', { href: `#/sessione/${seduta.id}`, style: 'margin-top:8px' },
       'Inizia questo allenamento') : null,
@@ -194,100 +179,21 @@ function bloccoFase(etichetta, fase) {
   ]);
 }
 
-/** L'ol degli esercizi, con le superserie raggruppate visivamente. */
-function elencoEsercizi(esercizi, settimanaFase, profilo) {
-  const gruppi = raggruppaSuperserie(esercizi || []);
-  const voci = [];
-  gruppi.forEach((gruppo) => {
-    const inSuperserie = gruppo.length > 1;
-    gruppo.forEach((e, i) => {
-      voci.push(elementoEsercizio(
-        e, settimanaFase, profilo, inSuperserie, i === 0, i === gruppo.length - 1,
-      ));
-    });
-  });
-  return h('ol.lista.lista-num', { style: 'margin:10px 0' }, voci);
-}
+function elementoEsercizio(e, profilo) {
+  let nota = `${e.serie} × ${e.rip}`;
+  if (e.recuperoSec) nota += ` · rec ${durata(e.recuperoSec)}`;
 
-/** Esercizi consecutivi con lo stesso valore di `superserie` finiscono nello stesso gruppo. */
-function raggruppaSuperserie(esercizi) {
-  const gruppi = [];
-  let i = 0;
-  while (i < esercizi.length) {
-    const e = esercizi[i];
-    if (e.superserie != null) {
-      const gruppo = [e];
-      let j = i + 1;
-      while (j < esercizi.length && esercizi[j].superserie === e.superserie) {
-        gruppo.push(esercizi[j]);
-        j += 1;
-      }
-      gruppi.push(gruppo);
-      i = j;
-    } else {
-      gruppi.push([e]);
-      i += 1;
-    }
-  }
-  return gruppi;
-}
-
-function elementoEsercizio(e, settimanaFase, profilo, inSuperserie, primo, ultimo) {
-  const n = piani.serieDi(e, settimanaFase);
-  const vuoto = n === 0;
-
-  const corpo = [];
-  if (inSuperserie && primo) corpo.push(h('p.occhiello', 'Superserie'));
-  corpo.push(h('div.sch-nome', [
-    h('span', e.nome),
-    e.gruppo ? h('span.tag', piani.nomeGruppo(e.gruppo)) : null,
-  ].filter(Boolean)));
-  if (e.varianteFacile && profilo === 'corinna') {
-    corpo.push(h('p.sch-variante', `Variante per Corinna: ${e.varianteFacile}`));
-  }
-
-  let nota;
-  if (vuoto) {
-    const ingresso = settimanaIngresso(e);
-    nota = ingresso ? `Entra dalla settimana ${ingresso}` : 'Non prevista questa settimana';
-  } else {
-    nota = `${n} × ${e.rip}`;
-    const mostraRecupero = (!inSuperserie || ultimo) && e.recuperoSec;
-    if (mostraRecupero) nota += ` · rec ${durata(e.recuperoSec)}`;
-  }
-  corpo.push(h('p.nota', nota));
-  if (e.note) corpo.push(h('p.nota', e.note));
-
-  let sel = 'li';
-  if (vuoto) sel += '.spento';
-  if (inSuperserie) {
-    sel += '.sch-ss';
-    if (primo) sel += '.sch-ss-primo';
-    if (ultimo) sel += '.sch-ss-ultimo';
-  }
-
-  return h(sel, [h('span.cresci', corpo)]);
-}
-
-/** Da quale settimana della fase un esercizio a serie:0 comincia a comparire. */
-function settimanaIngresso(esercizio) {
-  const scala = esercizio.serieDaSettimana;
-  if (!scala) return null;
-  const voci = Object.entries(scala)
-    .map(([k, v]) => [Number(k), v])
-    .sort((a, b) => a[0] - b[0]);
-  const trovata = voci.find(([, v]) => v > 0);
-  return trovata ? trovata[0] : null;
-}
-
-/** Settimana nella fase per il piano mostrato: se manca la data di inizio,
-    o si guarda un piano archiviato fuori dal suo intervallo, resta 1. */
-function settimanaNellaFaseEff(riferimento, settimanaAssoluta) {
-  if (!riferimento) return 1;
-  const totale = riferimento.settimanaA - riferimento.settimanaDa + 1;
-  if (settimanaAssoluta == null) return 1;
-  const n = settimanaAssoluta - riferimento.settimanaDa + 1;
-  return Math.min(Math.max(n, 1), totale);
+  return h('li', [h('span.cresci', [
+    h('div.sch-nome', [
+      h('span', e.nome),
+      e.gruppo ? h('span.tag', piani.nomeGruppo(e.gruppo)) : null,
+    ].filter(Boolean)),
+    e.varianteFacile && profilo === 'corinna'
+      ? h('p.sch-variante', `Variante per Corinna: ${e.varianteFacile}`)
+      : null,
+    h('p.nota', nota),
+    e.note ? h('p.nota', e.note) : null,
+  ].filter(Boolean))]);
 }
 
 async function bloccoAltriPiani() {
@@ -300,7 +206,7 @@ async function bloccoAltriPiani() {
       ...altri.map((p) => h('a.sch-riga-piano', { href: `#/scheda/${p.id}` }, [
         h('span.cresci', [
           h('div', p.nome),
-          h('p.nota', p.locale ? 'Creato dall’app' : `Settimane ${p.settimanaDa}–${p.settimanaA}`),
+          h('p.nota', `Settimane ${p.settimanaDa}–${p.settimanaA}`),
         ]),
         h('span.nota', p.passato ? 'passato' : (p.futuro ? 'in arrivo' : '')),
       ])),
@@ -316,8 +222,6 @@ const STILE = `
 .sch-badge { border: var(--bordo) solid var(--linea); padding: 4px 10px; white-space: nowrap; }
 .sch-punti { list-style: disc; margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 15px; }
 .sch-punti > li { padding: 0; }
-li.sch-ss { border-left: var(--bordo-xl) solid var(--linea); padding-left: 10px; margin-left: -2px; }
-li.sch-ss:not(.sch-ss-ultimo) { border-bottom: 0; padding-bottom: 2px; }
 .sch-variante { font-size: 13px; color: var(--ink-2); margin: 2px 0 0; }
 .sch-nome { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .sch-barra { min-height: 38px; }

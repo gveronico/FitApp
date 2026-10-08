@@ -2,7 +2,7 @@
    sul telefono. Niente rete, niente account.
 
    Archivi
-     impostazioni  chiave/valore        profilo, pesoCorporeo, tema, dataInizio…
+     impostazioni  chiave/valore        profilo, tema, dataInizio…
      sessioni      { id, ... }          una per allenamento svolto
      serie         { id, ... }          una per serie registrata
      foto          { id, ... }          una per scatto, con il blob dentro
@@ -115,21 +115,6 @@ async function filtra(elenco, persona) {
   return ok ? elenco.filter(ok) : elenco;
 }
 
-/** Peso corporeo di una persona. Prima del 29/09/2026 ce n'era uno solo,
-    `pesoCorporeo`: era del proprietario del telefono. */
-export async function pesoDi(persona) {
-  const v = await leggi(`peso:${persona}`);
-  if (v != null) return v;
-  const profilo = await leggi('profilo');
-  return !profilo || profilo === persona ? leggi('pesoCorporeo') : null;
-}
-
-export async function scriviPeso(persona, kg) {
-  await scrivi(`peso:${persona}`, kg);
-  if (persona === (await leggi('profilo'))) await cancella('pesoCorporeo');
-  return kg;
-}
-
 /** Una volta sola: i dati di prima diventano del proprietario del telefono. */
 export async function migra() {
   if ((await leggi('versioneDati')) >= 2) return;
@@ -141,9 +126,6 @@ export async function migra() {
     await Promise.all(tutti.filter((x) => !x.persona)
       .map((x) => attesa(s.put({ ...x, persona: profilo }))));
   }
-  const vecchio = await leggi('pesoCorporeo');
-  if (vecchio != null && (await leggi(`peso:${profilo}`)) == null) await scrivi(`peso:${profilo}`, vecchio);
-  await cancella('pesoCorporeo');
   await scrivi('versioneDati', 2);
 }
 
@@ -153,7 +135,6 @@ const PREDEFINITE = {
   profilo: null,          // 'giuseppe' | 'corinna' — di chi è il telefono, scelto al primo avvio
   personaVista: null,     // di chi sono Progressi e Foto; null = il proprietario
   partecipanti: null,     // chi si allena: ['giuseppe','corinna']; null = tutti e due
-  pesoCorporeo: null,     // kg, di prima del 29/09/2026: ora è `peso:<persona>`, vedi pesoDi()
   tema: 'auto',           // 'auto' | 'chiaro' | 'scuro'
   dataInizio: null,       // 'YYYY-MM-DD' del primo allenamento della settimana 1
   pianoAttivo: null,      // id del piano scelto a mano; se null lo calcola la data
@@ -237,8 +218,6 @@ export async function eliminaSessione(id) {
  *   indice:int (0-based), carico:number|null, ripetizioni:int|null,
  *   monitorata:bool, note:string
  * }
- * Su trazioni e assistite `carico` è già il carico reale
- * (peso corporeo ± zavorra/assistenza), non il numero letto sulla macchina.
  */
 export async function salvaSerie(serie) {
   const s = await tx('serie', 'readwrite');

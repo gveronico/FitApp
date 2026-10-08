@@ -1,14 +1,13 @@
 /* modifica.js — il piano di allenamento, da cambiare dall'app.
 
    Tutto si salva al tocco di Salva, su questo telefono (piani.js, copie).
-   Il canale principale resta Claude, che scrive i piani nel repo: se Claude
-   aggiorna un piano che qui è stato cambiato, in cima compare l'avviso e si
-   sceglie quale tenere.
+   Quello che si cambia qui vale quanto il piano del repo: da lì in poi la
+   scheda è questa, senza avvisi e senza confronti.
 
    Due cose vivono in posti diversi, e non per caso:
    - nome e gruppo sono dell'esercizio (personalizza.js, legati all'id): valgono
      in ogni piano, ed è sul gruppo che si sommano i progressi;
-   - serie, ripetizioni, recupero e il resto sono del piano.
+   - serie, ripetizioni, recupero e note sono del piano.
 
    Rotte
      #/modifica/<idPiano>   modifica quel piano
@@ -19,13 +18,6 @@ import { h, metti, conferma, durata, tocco } from '../ui.js';
 import * as piani from '../piani.js';
 import * as store from '../store.js';
 import * as personalizza from '../personalizza.js';
-
-const CARICHI = [
-  { id: 'esterno', nome: 'Pesi o macchina' },
-  { id: 'assistito', nome: 'Assistito (trazioni alla macchina)' },
-  { id: 'corpoLibero', nome: 'Corpo libero, con zavorra' },
-  { id: 'tempo', nome: 'A tempo (secondi)' },
-];
 
 export async function monta(contenitore, parametri) {
   iniettaStile();
@@ -85,32 +77,11 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
   }
 
   async function disegna() {
-    const [statoCopia, imp] = await Promise.all([piani.statoCopia(riferimento), store.leggiTutte()]);
+    const imp = await store.leggiTutte();
     onTitolo?.(piano.nome || riferimento.nome);
     const pezzi = [];
 
-    if (statoCopia.repoCambiato) {
-      pezzi.push(h('div.fascia.fascia-avviso', [
-        h('p', { style: 'margin:0 0 8px' },
-          'Claude ha aggiornato questo piano dopo le tue modifiche. Quale tieni?'),
-        h('div.btn-riga', [
-          h('button.btn.btn-s', {
-            type: 'button',
-            onclick: async () => {
-              if (!conferma('Uso il piano nuovo di Claude: le modifiche fatte qui a serie, ripetizioni ed esercizi si perdono. Nomi e gruppi restano.')) return;
-              await piani.ripristinaPiano(riferimento);
-              await ricarica();
-            },
-          }, 'Quello nuovo'),
-          h('button.btn.btn-s', {
-            type: 'button',
-            onclick: async () => { await piani.tieniCopia(riferimento); await ricarica(); },
-          }, 'Il mio'),
-        ]),
-      ]));
-    }
-
-    pezzi.push(bloccoPiano(statoCopia, imp));
+    pezzi.push(bloccoPiano(imp));
     (piano.sedute || []).forEach((seduta, i) => pezzi.push(bloccoSeduta(seduta, i)));
     pezzi.push(h('button.btn', {
       type: 'button',
@@ -130,7 +101,7 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
 
   /* ---------- il piano ------------------------------------- */
 
-  function bloccoPiano(statoCopia, imp) {
+  function bloccoPiano(imp) {
     const campoNome = h('input', { type: 'text', value: piano.nome || '', 'aria-label': 'Nome del piano' });
     const righe = [
       h('p.occhiello', 'Piano'),
@@ -174,20 +145,10 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
         type: 'button',
         onclick: async () => {
           if (!conferma(`Elimino il piano “${piano.nome}”? Gli allenamenti già registrati restano nello storico.`)) return;
-          await piani.ripristinaPiano(riferimento);
+          await piani.eliminaPiano(riferimento);
           location.hash = '#/scheda';
         },
       }, 'Elimina questo piano'));
-    } else if (statoCopia.copia) {
-      righe.push(h('p.nota', 'Questo piano è stato cambiato dall’app.'));
-      righe.push(h('button.btn.btn-rosso', {
-        type: 'button',
-        onclick: async () => {
-          if (!conferma('Rimetto il piano come l’ha scritto Claude? Serie, ripetizioni ed esercizi cambiati qui si perdono. Nomi e gruppi restano.')) return;
-          await piani.ripristinaPiano(riferimento);
-          await ricarica();
-        },
-      }, 'Rimetti il piano di Claude'));
     }
 
     return h('div.blocco.pila', righe);
@@ -288,7 +249,6 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
     const gruppo = pz.gruppo || e.gruppo;
     const sotto = [`${e.serie} × ${e.rip}`];
     if (e.recuperoSec) sotto.push(`rec ${durata(e.recuperoSec)}`);
-    if (e.superserie != null && e.superserie !== '') sotto.push(`superserie ${e.superserie}`);
 
     const li = h('li', [
       h('span.cresci', [
@@ -327,7 +287,7 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
     const nuovo = !e;
     const pz = e ? personalizza.leggi(personalizza.chiaveEsercizio(e.id)) || {} : {};
     const base = e || {
-      serie: 3, rip: '8-10', ripMin: 8, ripMax: 10, recuperoSec: 90, carico: 'esterno', incrementoKg: 2.5, note: '',
+      serie: 3, rip: '8-10', ripMin: 8, ripMax: 10, recuperoSec: 90, note: '',
     };
 
     const idLista = `mdf-noti-${Math.random().toString(36).slice(2, 7)}`;
@@ -341,19 +301,15 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
       h('option', { value: '', selected: !gruppoAttuale }, 'Scegli il gruppo'),
       ...piani.GRUPPI.map((g) => h('option', { value: g.id, selected: g.id === gruppoAttuale }, g.nome)),
     ]);
-    const campoSerie = h('input', { type: 'number', inputmode: 'numeric', min: '0', max: '10', value: String(base.serie ?? 3) });
+    const campoSerie = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '10', value: String(base.serie ?? 3) });
     const campoRip = h('input', { type: 'text', value: piani.testoRip(base), 'aria-label': 'Ripetizioni' });
     const campoRec = h('input', { type: 'number', inputmode: 'numeric', min: '0', step: '15', value: String(base.recuperoSec ?? 90) });
-    const campoCarico = h('select', { 'aria-label': 'Come si carica' },
-      CARICHI.map((c) => h('option', { value: c.id, selected: c.id === (base.carico || 'esterno') }, c.nome)));
-    const campoInc = h('input', { type: 'number', inputmode: 'decimal', min: '0', step: '0.25', value: String(base.incrementoKg ?? 2.5) });
-    const campoSs = h('input', { type: 'text', value: base.superserie == null ? '' : String(base.superserie), placeholder: 'es. 4' });
     const campoNote = h('textarea', { value: base.note || '', placeholder: 'Una riga sotto il nome, facoltativa' });
     const errore = h('p.nota.rosso');
 
     /* Quel che il modulo dice del piano, esclusi nome e gruppo. Se non cambia,
        il piano non si tocca: rinominare un esercizio non crea una copia. */
-    const delPiano = () => JSON.stringify([campoSerie, campoRip, campoRec, campoCarico, campoInc, campoSs, campoNote]
+    const delPiano = () => JSON.stringify([campoSerie, campoRip, campoRec, campoNote]
       .map((c) => String(c.value).trim()));
     const comEraNelPiano = delPiano();
 
@@ -363,28 +319,18 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
         const noto = trovaNoto(campoNome.value);
         if (!noto) return;
         if (!campoGruppo.value && noto.gruppo) campoGruppo.value = noto.gruppo;
-        campoCarico.value = noto.carico || 'esterno';
-        if (noto.incrementoKg != null) campoInc.value = String(noto.incrementoKg);
       });
     }
 
     const salvaModulo = async () => {
       const nome = campoNome.value.trim();
       if (!nome) { errore.textContent = 'Serve un nome.'; return; }
-      const carico = campoCarico.value;
-      const testo = campoRip.value.trim();
-      const rip = carico === 'tempo' && /^\d+$/.test(testo)
-        ? { rip: testo, ripMin: Number(testo), ripMax: Number(testo), ripSerie: null }
-        : piani.leggiRip(testo);
+      const rip = piani.leggiRip(campoRip.value);
       if (!rip) { errore.textContent = 'Ripetizioni: scrivi 10, 8-10 oppure 12-10-8.'; return; }
-      const serie = Math.max(0, Math.min(10, parseInt(campoSerie.value, 10) || 0));
       const cambi = {
-        serie,
+        serie: Math.max(1, Math.min(10, parseInt(campoSerie.value, 10) || 1)),
         ...rip,
         recuperoSec: Math.max(0, parseInt(campoRec.value, 10) || 0),
-        carico,
-        incrementoKg: Math.max(0, Number(String(campoInc.value).replace(',', '.')) || 0),
-        superserie: campoSs.value.trim() || null,
         note: campoNote.value.trim(),
       };
       const gruppo = campoGruppo.value || null;
@@ -398,14 +344,11 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
         }
         const es = { id, nome: noto ? noto.nomePiano : nome, gruppo: noto ? noto.gruppoPiano : gruppo };
         piani.applicaCambi(es, cambi);
-        if (noto?.caricoAlternativo && noto.caricoAlternativo !== es.carico) es.caricoAlternativo = noto.caricoAlternativo;
         seduta.esercizi = [...(seduta.esercizi || []), es];
         await scriviNomeGruppo(es, nome, gruppo);
       } else {
         await scriviNomeGruppo(e, nome, gruppo);
         if (delPiano() === comEraNelPiano) { chiudi(); await ricarica(); return; }
-        if (serie !== e.serie) cambi.serieDaSettimana = null;
-        if (cambi.carico === e.caricoAlternativo) cambi.caricoAlternativo = null;
         piani.applicaCambi(e, cambi);
       }
       chiudi();
@@ -433,13 +376,8 @@ export async function editor(schermata, riferimento, { onTitolo } = {}) {
         h('label.campo.mod-campo', [h('span.occhiello', 'Serie'), campoSerie]),
         h('label.campo.mod-campo', [h('span.occhiello', 'Ripetizioni'), campoRip]),
       ]),
-      h('p.nota', '10 fisse · 8-10 per salire di carico · 12-10-8 una per serie. A tempo: i secondi.'),
-      h('div.mdf-due', [
-        h('label.campo.mod-campo', [h('span.occhiello', 'Recupero (s)'), campoRec]),
-        h('label.campo.mod-campo', [h('span.occhiello', 'Si sale di (kg)'), campoInc]),
-      ]),
-      h('label.campo.mod-campo', [h('span.occhiello', 'Come si carica'), campoCarico]),
-      h('label.campo.mod-campo', [h('span.occhiello', 'Superserie · stesso numero, stesso giro'), campoSs]),
+      h('p.nota', '10 fisse · 8-10 per salire di carico · 12-10-8 una per serie.'),
+      h('label.campo.mod-campo', [h('span.occhiello', 'Recupero (secondi)'), campoRec]),
       h('label.campo.mod-campo', [h('span.occhiello', 'Note'), campoNote]),
       !nuovo ? h('p.nota', 'Nome e gruppo cambiano l’esercizio in tutti i piani.') : null,
       errore,
@@ -495,12 +433,16 @@ async function eserciziNoti() {
         nomePiano: e.nome,
         gruppo: pz.gruppo || e.gruppo,
         gruppoPiano: e.gruppo,
-        carico: e.carico,
-        caricoAlternativo: e.caricoAlternativo,
-        incrementoKg: e.incrementoKg,
       });
     }));
   }
+  // Quelli creati dal telefono con Cambia, in sessione.
+  (await piani.catalogoEsercizi()).forEach((e) => {
+    if (out.has(e.id)) return;
+    out.set(e.id, {
+      id: e.id, nome: e.nome, nomePiano: e.nome, gruppo: e.gruppo, gruppoPiano: e.gruppo,
+    });
+  });
   return out;
 }
 
@@ -560,8 +502,8 @@ async function montaNuovo(contenitore) {
       h('button.btn.btn-primo', { type: 'button', onclick: crea }, 'Crea il piano'),
     ]),
     h('p.nota',
-      'Il piano resta su questo telefono. Di solito i piani li scrive Claude: questo è per quando '
-      + 'serve subito. Per tornare al piano di Claude: Altro → Piano attivo → calcolo automatico.'),
+      'Il piano resta su questo telefono ed entra nel backup. Per tornare al piano del calendario: '
+      + 'Altro → Piano attivo → Torna al calcolo automatico.'),
   ]));
 }
 

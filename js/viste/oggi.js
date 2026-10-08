@@ -67,7 +67,7 @@ export async function monta(app) {
 
   /* --- allenamento -------------------------------------- */
 
-  if (inCorso) schermata.append(bloccoInCorso(st, inCorso));
+  if (inCorso) schermata.append(bloccoInCorso(inCorso));
 
   if (st.piano && sedute.length) {
     schermata.append(sceltaChi(chi, () => { app.replaceChildren(); monta(app); }));
@@ -96,24 +96,22 @@ export async function monta(app) {
 
 /* ---------- pezzi --------------------------------------- */
 
-/** Un esercizio a 0 serie questa settimana non è ancora entrato nel programma. */
-function eserciziDi(st, seduta) {
-  return (seduta.esercizi || []).filter((e) => piani.serieDi(e, st.settimanaNellaFase) > 0);
+function eserciziDi(seduta) {
+  return (seduta.esercizi || []).filter((e) => e.serie > 0);
 }
 
 /** L'allenamento aperto oggi: si riprende. */
-function bloccoInCorso(st, seduta) {
-  const settimana = st.settimanaNellaFase;
+function bloccoInCorso(seduta) {
   return h('div.blocco.blocco-pieno', [
     h('div.riga-sp', [
       h('p.occhiello', 'In corso'),
       h('p.occhiello', seduta.sottotitolo || ''),
     ]),
     h('ol.lista.lista-num', { style: 'margin:10px 0 14px' },
-      eserciziDi(st, seduta).map((e) => h('li', [
+      eserciziDi(seduta).map((e) => h('li', [
         h('span.cresci', [
           h('div', e.nome),
-          h('div.nota', { style: 'color:inherit;opacity:.7' }, `${piani.serieDi(e, settimana)} × ${e.rip}`),
+          h('div.nota', { style: 'color:inherit;opacity:.7' }, `${e.serie} × ${e.rip}`),
         ]),
       ]))),
     h('a.btn.btn-primo', {
@@ -169,7 +167,7 @@ function sceltaSeduta(st, sedute, fatte, inCorso) {
     const segno = segniFatta(stati.get(s.id));
     const stato = !!segno;
     const evidenza = s === prossima;
-    const esercizi = eserciziDi(st, s);
+    const esercizi = eserciziDi(s);
     return h(evidenza ? 'a.blocco.blocco-pieno.ogg-scelta' : (stato ? 'a.blocco.blocco-quieto.ogg-scelta' : 'a.blocco.ogg-scelta'), {
       href: `#/sessione/${s.id}`,
     }, [

@@ -40,13 +40,56 @@ await prova('ogni esercizio ha un gruppo muscolare noto', () => {
   assert.deepEqual(senza.map((e) => e.id), []);
 });
 
+await prova('petto e spalle sono due gruppi: le spinte su panca vanno al petto', () => {
+  const gruppo = (id) => tuttiEsercizi.find((e) => e.id === id).gruppo;
+  ['panca-piana-manubri', 'croci-panca-piana', 'panca-inclinata-manubri', 'panca-inclinata-bilanciere']
+    .forEach((id) => assert.equal(gruppo(id), 'petto', id));
+  ['military-press-manubri', 'military-press-bilanciere', 'alzate-laterali', 'face-pull-cavi', 'alzate-posteriori-cavi']
+    .forEach((id) => assert.equal(gruppo(id), 'spalle', id));
+  assert.ok(!tuttiEsercizi.some((e) => e.gruppo === 'petto-spalle'));
+});
+
+await prova('una copia sul telefono con petto-spalle si smista dal nome', async () => {
+  const copia = {
+    id: 'vecchia',
+    nome: 'Copia vecchia',
+    sedute: [{
+      id: 's',
+      nome: 'S',
+      esercizi: [
+        { id: 'a', nome: 'Panca inclinata 45° con bilanciere', gruppo: 'petto-spalle', serie: 3, rip: '8' },
+        { id: 'b', nome: 'Military press con manubri', gruppo: 'petto-spalle', serie: 3, rip: '8' },
+        { id: 'c', nome: 'Alzate laterali', gruppo: 'petto-spalle', serie: 3, rip: '8' },
+      ],
+    }],
+  };
+  const { leggi, scrivi, cancella } = await import(`${MOD}store.js`);
+  await scrivi('piano:vecchia', { piano: copia, base: null, locale: true, meta: null });
+  const p = await piani.piano({ id: 'vecchia' });
+  assert.deepEqual(p.sedute[0].esercizi.map((e) => e.gruppo), ['petto', 'spalle', 'spalle']);
+  assert.equal((await leggi('piano:vecchia')).piano.sedute[0].esercizi[0].gruppo, 'petto-spalle',
+    'la lettura non deve riscrivere la copia');
+  await cancella('piano:vecchia');
+});
+
+await prova('niente superserie, incrementi, tipi di carico né progressione automatica', () => {
+  [fase1, fase2].forEach((p) => assert.equal(p.progressione, undefined, `${p.id}: progressione`));
+  tuttiEsercizi.forEach((e) => {
+    ['superserie', 'incrementoKg', 'carico', 'caricoAlternativo', 'serieDaSettimana']
+      .forEach((k) => assert.equal(e[k], undefined, `${e.id}: ${k}`));
+    assert.ok(e.recuperoSec > 0, `${e.id}: senza recupero`);
+    assert.ok(!/superserie|incremento|tacca|assistit|zavorra/i.test(e.note || ''), `${e.id}: nota da togliere`);
+  });
+  assert.ok(!tuttiEsercizi.some((e) => e.id === 'plank' || e.id === 'trazioni'));
+});
+
 await prova('in Fase 1 le serie sono 3 e le ripetizioni 12-10-8', () => {
-  const conCarico = fase1.sedute.flatMap((s) => s.esercizi)
-    .filter((e) => e.carico !== 'tempo' && e.id !== 'stacco-rialzo-bilanciere');
-  assert.ok(conCarico.length >= 19, 'pochi esercizi controllati');
-  conCarico.forEach((e) => {
+  const scalati = fase1.sedute.flatMap((s) => s.esercizi)
+    .filter((e) => e.id !== 'stacco-rialzo-bilanciere');
+  assert.ok(scalati.length >= 19, 'pochi esercizi controllati');
+  scalati.forEach((e) => {
     assert.deepEqual(e.ripSerie, [12, 10, 8], `${e.id}: ripSerie sbagliate`);
-    assert.equal(piani.serieDi(e, 1), 3, `${e.id}: non fa 3 serie dalla settimana 1`);
+    assert.equal(e.serie, 3, `${e.id}: non fa 3 serie`);
   });
 });
 
@@ -56,8 +99,8 @@ await prova('ripAttese dà il numero della serie giusta', () => {
   assert.equal(piani.ripAttese(panca, 1), 10);
   assert.equal(piani.ripAttese(panca, 2), 8);
   assert.equal(piani.ripAttese(panca, 9), 8, 'oltre la fine resta l’ultima');
-  const plank = fase1.sedute[2].esercizi.find((e) => e.id === 'plank');
-  assert.equal(piani.ripAttese(plank, 0), null, 'a tempo non c’è un numero atteso');
+  const stacco = fase1.sedute[3].esercizi.find((e) => e.id === 'stacco-rialzo-bilanciere');
+  assert.equal(piani.ripAttese(stacco, 0), null, 'a ripetizioni fisse non c’è una scala');
 });
 
 /* ---------- Fase 1 v5.0 (23/09/2026) ----------------------- */
@@ -68,7 +111,6 @@ const idsF1 = (id) => sedutaF1(id).esercizi.map((e) => e.id);
 await prova('Fase 1: le sei settimane sono uguali, niente entra a metà', () => {
   fase1.sedute.flatMap((s) => s.esercizi).forEach((e) => {
     assert.equal(e.serieDaSettimana, undefined, `${e.id}: cambia ancora a metà fase`);
-    assert.equal(piani.serieDi(e, 1), piani.serieDi(e, 6), `${e.id}: settimana 1 ≠ settimana 6`);
     assert.ok(!/settimana \d/i.test(e.note || ''), `${e.id}: la nota parla ancora di settimane`);
   });
 });
@@ -87,15 +129,24 @@ await prova('Fase 1: squat con bilanciere al posto del goblet, stesso id della F
 await prova('Fase 1: lat machine presa larga al posto delle trazioni assistite', () => {
   const primo = sedutaF1('upper-b').esercizi[0];
   assert.equal(primo.id, 'lat-machine-presa-larga');
-  assert.equal(primo.carico, 'esterno', 'deve chiedere i kg, non il peso corporeo');
-  assert.ok(!fase1.sedute.flatMap((s) => s.esercizi).some((e) => e.carico === 'assistito'));
+});
+
+await prova('Upper B: sit up col disco al posto del plank, stesso id in Fase 1 e 2', () => {
+  assert.ok(idsF1('upper-b').includes('situp-disco-petto'));
+  assert.ok(fase2.sedute.find((s) => s.id === 'upper-b').esercizi.some((e) => e.id === 'situp-disco-petto'));
+});
+
+await prova('Fase 2: lat machine presa larga al posto delle trazioni, stesso storico della Fase 1', () => {
+  const primo = fase2.sedute.find((s) => s.id === 'upper-b').esercizi[0];
+  assert.equal(primo.id, 'lat-machine-presa-larga');
+  assert.equal(primo.gruppo, 'dorso');
 });
 
 await prova('Fase 1: Lower B senza hip thrust, stacco da rialzo dalla settimana 1', () => {
   assert.ok(!idsF1('lower-b').includes('hip-thrust-bilanciere'));
   const stacco = sedutaF1('lower-b').esercizi[0];
   assert.equal(stacco.id, 'stacco-rialzo-bilanciere');
-  assert.equal(piani.serieDi(stacco, 1), 3);
+  assert.equal(stacco.serie, 3);
 });
 
 await prova('Fase 1: due allenamenti nelle settimane 1-2, poi quattro', () => {
@@ -380,10 +431,12 @@ await prova('gli incrementi si aggregano per gruppo muscolare', () => {
     esercizioId, data, carico, ripetizioni, indice, monitorata: true, sedutaId: 'upper-a',
   });
   const serie = [
-    s('panca-piana-manubri', '2026-10-01', 40, 8),   // petto-spalle  +25%
+    s('panca-piana-manubri', '2026-10-01', 40, 8),   // petto   +25%
     s('panca-piana-manubri', '2026-11-01', 50, 8),
-    s('croci-panca-piana', '2026-10-01', 10, 10),    // petto-spalle  +50%
+    s('croci-panca-piana', '2026-10-01', 10, 10),    // petto   +50%
     s('croci-panca-piana', '2026-11-01', 15, 10),
+    s('alzate-laterali', '2026-10-01', 8, 12),       // spalle  +25%
+    s('alzate-laterali', '2026-11-01', 10, 12),
     s('curl-manubri', '2026-10-01', 10, 10),         // braccia       +20%
     s('curl-manubri', '2026-11-01', 12, 10),
     s('leg-curl', '2026-10-01', 30, 12),             // gambe, a meno rip: non conta
@@ -394,11 +447,12 @@ await prova('gli incrementi si aggregano per gruppo muscolare', () => {
   const gruppi = new Map(tuttiEsercizi.map((e) => [e.id, e.gruppo]));
   const righe = progressi.aggregaPerGruppo(calcolo.esercizi, gruppi);
 
-  assert.deepEqual(righe.map((r) => r.gruppo), ['braccia', 'petto-spalle'],
+  assert.deepEqual(righe.map((r) => r.gruppo), ['braccia', 'petto', 'spalle'],
     'ordine dei gruppi o filtro sbagliati');
   assert.equal(righe.find((r) => r.gruppo === 'braccia').media, 20);
-  assert.equal(righe.find((r) => r.gruppo === 'petto-spalle').media, 37.5);
-  assert.equal(righe.find((r) => r.gruppo === 'petto-spalle').quanti, 2);
+  assert.equal(righe.find((r) => r.gruppo === 'petto').media, 37.5);
+  assert.equal(righe.find((r) => r.gruppo === 'petto').quanti, 2);
+  assert.equal(righe.find((r) => r.gruppo === 'spalle').media, 25);
   assert.ok(!righe.some((r) => r.gruppo === 'gambe'), 'il leg curl a meno rip non va contato');
 });
 
@@ -422,7 +476,7 @@ await prova('il gruppo si cambia dall’app e vale per i progressi', async () =>
   const p = await piani.piano(RIF1);
   const e = p.sedute[0].esercizi[0];
   assert.equal(e.gruppo, 'braccia');
-  assert.equal(e.gruppoOriginale, 'petto-spalle');
+  assert.equal(e.gruppoOriginale, 'petto');
   assert.equal(e.nome, 'Panca piana con manubri', 'il nome non doveva cambiare');
   await personalizza.azzeraTutte();
 });
@@ -436,26 +490,40 @@ await prova('un piano modificato è una copia sul telefono; il repo resta com’
   const letto = await piani.piano(RIF1);
   assert.equal(letto.sedute[0].esercizi[0].serie, 5);
   assert.equal(letto.sedute[0].giorno, 3);
-  assert.deepEqual(await piani.statoCopia(RIF1), { copia: true, locale: false, repoCambiato: false });
-  assert.equal(await piani.quanteCopie(), 1);
+  assert.equal((await store.leggi('piano:2026-fase1')).base, undefined, 'la copia tiene ancora la firma del repo');
 
   const repo = await piani.piano({ file: RIF1.file });
   assert.equal(repo.sedute[0].esercizi[0].serie, 3, 'il file del repo è stato toccato');
 
-  await piani.azzeraCopie();
+  await piani.eliminaPiano(RIF1);
   assert.equal((await piani.piano(RIF1)).sedute[0].esercizi[0].serie, 3);
 });
 
-await prova('se Claude cambia il piano dopo le modifiche, l’app se ne accorge', async () => {
-  const p = await piani.pianoGrezzo(RIF1);
-  await piani.salvaPiano(RIF1, p);
-  const copia = await store.leggi('piano:2026-fase1');
-  await store.scrivi('piano:2026-fase1', { ...copia, base: 'firma-vecchia' });
-  assert.equal((await piani.statoCopia(RIF1)).repoCambiato, true);
-  await piani.tieniCopia(RIF1);
-  assert.equal((await piani.statoCopia(RIF1)).repoCambiato, false, 'Tieni il mio non ha tolto l’avviso');
-  await piani.ripristinaPiano(RIF1);
-  assert.equal((await piani.statoCopia(RIF1)).copia, false);
+await prova('una copia di prima del 05/10: superserie, carichi e petto-spalle si sistemano da soli', async () => {
+  const vecchio = {
+    id: '2026-fase1',
+    nome: 'Fase 1 mia',
+    progressione: { tipo: 'doppia', descrizione: '…' },
+    sedute: [{
+      id: 'upper-b',
+      nome: 'Upper B',
+      esercizi: [
+        { id: 'curl-manubri', nome: 'Curl', gruppo: 'braccia', serie: 3, rip: '10', recuperoSec: 0, superserie: '4', carico: 'esterno', incrementoKg: 1.25 },
+        { id: 'face-pull-cavi', nome: 'Face pull ai cavi', gruppo: 'petto-spalle', serie: 3, rip: '10', recuperoSec: 75, superserie: '4', carico: 'esterno' },
+        { id: 'trazioni', nome: 'Trazioni', gruppo: 'dorso', serie: 3, rip: '8', recuperoSec: 120, carico: 'corpoLibero', caricoAlternativo: 'assistito' },
+      ],
+    }],
+  };
+  await store.scrivi('piano:2026-fase1', { piano: vecchio, base: 'firma-vecchia', locale: false });
+  const p = await piani.piano(RIF1);
+  const [curl, face, traz] = p.sedute[0].esercizi;
+  assert.equal(p.nome, 'Fase 1 mia', 'la copia del telefono non vince sul repo');
+  assert.equal(p.progressione, undefined);
+  assert.equal(curl.recuperoSec, 75, 'il primo della superserie è rimasto senza recupero');
+  assert.equal(face.gruppo, 'spalle');
+  [curl, face, traz].forEach((e) => ['superserie', 'carico', 'caricoAlternativo', 'incrementoKg']
+    .forEach((k) => assert.equal(e[k], undefined, `${e.id}: ${k}`)));
+  await piani.eliminaPiano(RIF1);
 });
 
 await prova('un piano creato dall’app: in elenco, fuori dal calendario, attivo se forzato', async () => {
@@ -474,7 +542,7 @@ await prova('un piano creato dall’app: in elenco, fuori dal calendario, attivo
   assert.equal(forzato.riferimento.id, rif.id);
   assert.equal(forzato.piano.sedute.length, 4, 'la copia non ha le sedute del piano di partenza');
 
-  await piani.ripristinaPiano(voce);
+  await piani.eliminaPiano(voce);
   assert.equal(await store.leggi('pianoAttivo'), null, 'eliminato il piano, è rimasto forzato');
   assert.ok(!(await piani.indice()).allenamento.some((r) => r.id === rif.id));
   await store.scrivi('dataInizio', null);
@@ -485,7 +553,7 @@ await prova('un piano vuoto nasce con una seduta senza esercizi', async () => {
   const p = await piani.pianoGrezzo(rif);
   assert.equal(p.sedute.length, 1);
   assert.deepEqual(p.sedute[0].esercizi, []);
-  await piani.ripristinaPiano(rif);
+  await piani.eliminaPiano(rif);
 });
 
 await prova('una sessione ridotta risulta fatta in parte nella settimana', async () => {
@@ -516,6 +584,29 @@ await prova('pasti: si cambiano anche ingredienti e nota', async () => {
 
 /* ---------- due persone, un telefono ------------------------- */
 
+await prova('catalogo: gli esercizi di tutti i piani, più quelli creati dal telefono', async () => {
+  const prima = await piani.catalogoEsercizi();
+  assert.ok(prima.some((e) => e.id === 'panca-piana-manubri' && e.gruppo === 'petto'));
+  assert.equal(new Set(prima.map((e) => e.id)).size, prima.length, 'un esercizio compare due volte');
+
+  const nuovo = await piani.creaEsercizio({ nome: 'Hip thrust', gruppo: 'gambe' });
+  assert.ok(/^app-hip-thrust-[a-z0-9]+$/.test(nuovo.id), nuovo.id);
+  assert.equal((await store.leggi(`esercizio:${nuovo.id}`)).locale, true);
+  const dopo = await piani.catalogoEsercizi();
+  assert.ok(dopo.some((e) => e.id === nuovo.id && e.gruppo === 'gambe' && e.nome === 'Hip thrust'));
+
+  // Stesso nome, scritto in un altro modo: si riusa, niente doppioni.
+  assert.equal((await piani.creaEsercizio({ nome: ' hip THRUST ', gruppo: 'gambe' })).id, nuovo.id);
+  assert.equal((await piani.creaEsercizio({ nome: 'Panca piana con manubri', gruppo: 'petto' })).id, 'panca-piana-manubri');
+  assert.equal(await piani.creaEsercizio({ nome: '  ', gruppo: 'petto' }), null);
+
+  // Sta in impostazioni senza `pz:`: entra nel backup e Azzera modifiche non lo tocca.
+  await personalizza.carica(true);
+  await personalizza.azzeraTutte();
+  assert.ok(await store.leggi(`esercizio:${nuovo.id}`), 'Azzera modifiche ha cancellato un esercizio');
+  await store.cancella(`esercizio:${nuovo.id}`);
+});
+
 await prova('in due: ogni lettura dà i dati di una persona, TUTTE li dà tutti', async () => {
   await store.scrivi('profilo', 'giuseppe');
   await store.salvaSerie({ id: 'p-g', persona: 'giuseppe', sessioneId: 'sg', data: '2026-09-22', esercizioId: 'panca', indice: 0, carico: 30, ripetizioni: 12 });
@@ -531,17 +622,12 @@ await prova('in due: ogni lettura dà i dati di una persona, TUTTE li dà tutti'
   assert.equal((await store.serieDiEsercizio('panca', store.TUTTE)).length, 3);
   await store.scrivi('personaVista', null);
 
-  // La migrazione scrive la persona sui dati di prima, e sposta il peso.
-  await store.scrivi('pesoCorporeo', 81);
+  // La migrazione scrive la persona sui dati di prima.
   await store.migra();
   const tutte = await store.tutteLeSerie(store.TUTTE);
   assert.equal(tutte.find((s) => s.id === 'p-vecchia').persona, 'giuseppe');
-  assert.equal(await store.pesoDi('giuseppe'), 81);
-  assert.equal(await store.pesoDi('corinna'), null, 'il peso del proprietario è finito a Corinna');
-  assert.equal(await store.leggi('pesoCorporeo'), null);
 
   for (const id of ['p-g', 'p-c', 'p-vecchia']) await store.eliminaSerie(id);
-  await store.scrivi(`peso:giuseppe`, null);
   await store.scrivi('versioneDati', null);
   await store.scrivi('profilo', null);
 });
@@ -571,8 +657,6 @@ await prova('in due: il backup del telefono di Corinna si aggiunge, non riscrive
   assert.equal(await store.leggi('profilo'), 'giuseppe', 'il proprietario è cambiato');
   assert.equal(await store.leggi('dataInizio'), '2026-09-21', 'la data di inizio è stata riscritta');
   assert.equal((await store.spunte('spesa:'))['spesa:uova'], true, 'la spesa è stata riscritta');
-  assert.equal(await store.pesoDi('corinna'), 58);
-  assert.equal(await store.leggi('modoCarico:corinna:trazioni'), 'assistito');
   const serie = (await store.tutteLeSerie(store.TUTTE)).find((s) => s.id === 'ser-cor');
   assert.equal(serie.persona, 'corinna');
   assert.equal((await store.sessioni('corinna')).length, 1);
@@ -580,7 +664,7 @@ await prova('in due: il backup del telefono di Corinna si aggiunge, non riscrive
 
   await store.eliminaSessione('ses-cor');
   await store.azzeraSpunte('spesa:');
-  for (const k of ['peso:corinna', 'modoCarico:corinna:trazioni', 'dataInizio', 'profilo']) await store.cancella(k);
+  for (const k of ['dataInizio', 'profilo']) await store.cancella(k);
 });
 
 console.log(`\n${fatte} prove passate.`);

@@ -367,8 +367,7 @@ async function provenienza(dati) {
  * Cosa scrivere davvero. Ogni record prende la sua persona (i file di prima
  * non l'avevano: è quella del profilo del file). Dal telefono dell'altra
  * persona arrivano solo i suoi dati: niente impostazioni di qui riscritte,
- * niente spunte della spesa. Del suo si tengono il peso corporeo, se qui
- * manca, e il modo delle trazioni.
+ * niente spunte della spesa.
  */
 async function daScrivere(dati) {
   const { mio, suo, daAltri } = await provenienza(dati);
@@ -376,25 +375,7 @@ async function daScrivere(dati) {
   const timbra = (x) => { const p = diChi(x); return p ? { ...x, persona: p } : x; };
   const sessioni = (dati.sessioni || []).map(timbra);
   const serie = (dati.serie || []).map(timbra);
-  const imp = dati.impostazioni || {};
-
-  let impostazioni = null;
-  if (daAltri) {
-    impostazioni = {};
-    const pesoSuo = imp[`peso:${suo}`] ?? imp.pesoCorporeo;
-    if (pesoSuo != null && (await store.pesoDi(suo)) == null) impostazioni[`peso:${suo}`] = pesoSuo;
-    for (const [k, v] of Object.entries(imp)) {
-      const m = /^modoCarico:([^:]+)$/.exec(k);
-      if (m) impostazioni[`modoCarico:${suo}:${m[1]}`] = v;
-    }
-  } else if (dati.impostazioni) {
-    impostazioni = { ...imp };
-    if (impostazioni.pesoCorporeo != null && suo && impostazioni[`peso:${suo}`] == null) {
-      impostazioni[`peso:${suo}`] = impostazioni.pesoCorporeo;
-    }
-    delete impostazioni.pesoCorporeo;
-    impostazioni.versioneDati = 2;
-  }
+  const impostazioni = !daAltri && dati.impostazioni ? { ...dati.impostazioni, versioneDati: 2 } : null;
 
   return {
     diChi,

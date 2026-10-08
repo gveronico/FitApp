@@ -1,17 +1,12 @@
 {
   "id": "2026-fase2",
   "nome": "Fase 2 — Scheda principale",
-  "fonte": "ALLENAMENTO.md v4.0",
+  "fonte": "ALLENAMENTO.md v5.1",
   "settimane": 8,
   "monitorata": true,
   "regole": [
-    "Serie di avvicinamento: sul primo esercizio di ogni seduta si fanno 2-3 serie leggere in salita prima delle serie di lavoro. Non contano come serie e non si registrano.",
-    "Incrementi quando si sale di carico: +2,5 kg sui fondamentali di gamba, +1,25-2,5 kg sulla parte alta, 1 tacca sulle macchine."
+    "Si resta sullo stesso carico finché si chiudono tutte le serie al numero alto di ripetizioni, con tecnica pulita. Poi si sale di carico e si riparte dal numero basso."
   ],
-  "progressione": {
-    "tipo": "doppia",
-    "descrizione": "Si resta sullo stesso carico finché si completa il numero alto di ripetizioni in tutte le serie, con tecnica pulita. Raggiunto quello, si aumenta il carico e si riparte dal numero basso."
-  },
   "sedute": [
     {
       "id": "upper-a",
@@ -34,29 +29,23 @@
         {
           "id": "panca-piana-manubri",
           "nome": "Panca piana con manubri",
-          "gruppo": "petto-spalle",
+          "gruppo": "petto",
           "serie": 4,
           "rip": "6-8",
           "ripMin": 6,
           "ripMax": 8,
           "recuperoSec": 150,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 1.25,
-          "note": "2-3 serie leggere in salita prima delle serie di lavoro (non contano)."
+          "note": ""
         },
         {
           "id": "croci-panca-piana",
           "nome": "Croci su panca piana con manubri",
-          "gruppo": "petto-spalle",
+          "gruppo": "petto",
           "serie": 3,
           "rip": "10-12",
           "ripMin": 10,
           "ripMax": 12,
-          "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 1.25,
+          "recuperoSec": 75,
           "note": ""
         },
         {
@@ -68,10 +57,7 @@
           "ripMin": 8,
           "ripMax": 10,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 2.5,
-          "note": "Presa stretta neutra. Incremento convenzionale di una tacca sulla macchina."
+          "note": "Presa stretta neutra."
         },
         {
           "id": "pulley-basso-triangolo",
@@ -81,11 +67,8 @@
           "rip": "10-12",
           "ripMin": 10,
           "ripMax": 12,
-          "recuperoSec": 0,
-          "carico": "esterno",
-          "superserie": "4",
-          "incrementoKg": 2.5,
-          "note": "Incremento convenzionale di una tacca sulla macchina."
+          "recuperoSec": 60,
+          "note": ""
         },
         {
           "id": "push-down-corda",
@@ -95,11 +78,8 @@
           "rip": "12-15",
           "ripMin": 12,
           "ripMax": 15,
-          "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": "4",
-          "incrementoKg": 2.5,
-          "note": "4a e 4b in superserie, 90\" tra un giro e l'altro. Incremento convenzionale di una tacca sulla macchina."
+          "recuperoSec": 60,
+          "note": ""
         }
       ]
     },
@@ -130,10 +110,7 @@
           "ripMin": 6,
           "ripMax": 8,
           "recuperoSec": 150,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 2.5,
-          "note": "2-3 serie leggere in salita prima delle serie di lavoro (non contano).",
+          "note": "",
           "varianteFacile": "Goblet squat, squat al multipower, box squat"
         },
         {
@@ -145,23 +122,17 @@
           "ripMin": 10,
           "ripMax": 12,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 2.5,
-          "note": "Incremento convenzionale di una tacca sulla macchina."
+          "note": ""
         },
         {
           "id": "military-press-bilanciere",
           "nome": "Military press con bilanciere",
-          "gruppo": "petto-spalle",
+          "gruppo": "spalle",
           "serie": 3,
           "rip": "8-10",
           "ripMin": 8,
           "ripMax": 10,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 1.25,
           "note": "",
           "varianteFacile": "Military press con manubri, seduto"
         },
@@ -173,11 +144,8 @@
           "rip": "12-15",
           "ripMin": 12,
           "ripMax": 15,
-          "recuperoSec": 0,
-          "carico": "esterno",
-          "superserie": "4",
-          "incrementoKg": 2.5,
-          "note": "Incremento convenzionale di una tacca sulla macchina."
+          "recuperoSec": 60,
+          "note": ""
         },
         {
           "id": "crunch-cavi",
@@ -187,11 +155,8 @@
           "rip": "12-15",
           "ripMin": 12,
           "ripMax": 15,
-          "recuperoSec": 75,
-          "carico": "esterno",
-          "superserie": "4",
-          "incrementoKg": 2.5,
-          "note": "4a e 4b in superserie, 75\" tra un giro e l'altro. Incremento convenzionale di una tacca."
+          "recuperoSec": 60,
+          "note": ""
         }
       ]
     },
@@ -214,20 +179,15 @@
       },
       "esercizi": [
         {
-          "id": "trazioni",
-          "nome": "Trazioni (o trazioni assistite alla macchina)",
+          "id": "lat-machine-presa-larga",
+          "nome": "Lat machine presa larga",
           "gruppo": "dorso",
           "serie": 4,
-          "rip": "6-10",
-          "ripMin": 6,
+          "rip": "8-10",
+          "ripMin": 8,
           "ripMax": 10,
-          "recuperoSec": 120,
-          "carico": "corpoLibero",
-          "caricoAlternativo": "assistito",
-          "superserie": null,
-          "incrementoKg": 1.25,
-          "note": "2-3 serie leggere in salita prima delle serie di lavoro (non contano). Con la macchina assistita scegli \"Assistite\" sopra le serie: digiti l'assistenza, l'app registra peso corporeo meno assistenza.",
-          "varianteFacile": "Trazioni assistite, o lat machine"
+          "recuperoSec": 90,
+          "note": ""
         },
         {
           "id": "rematore-manubri",
@@ -238,23 +198,17 @@
           "ripMin": 8,
           "ripMax": 10,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 1.25,
           "note": ""
         },
         {
           "id": "panca-inclinata-bilanciere",
           "nome": "Panca inclinata 45° con bilanciere",
-          "gruppo": "petto-spalle",
+          "gruppo": "petto",
           "serie": 3,
           "rip": "8-10",
           "ripMin": 8,
           "ripMax": 10,
           "recuperoSec": 120,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 1.25,
           "note": "",
           "varianteFacile": "Panca inclinata con manubri"
         },
@@ -266,10 +220,7 @@
           "rip": "10-12",
           "ripMin": 10,
           "ripMax": 12,
-          "recuperoSec": 0,
-          "carico": "esterno",
-          "superserie": "4",
-          "incrementoKg": 1.25,
+          "recuperoSec": 60,
           "note": ""
         },
         {
@@ -280,11 +231,8 @@
           "rip": "10-12",
           "ripMin": 10,
           "ripMax": 12,
-          "recuperoSec": 75,
-          "carico": "esterno",
-          "superserie": "4",
-          "incrementoKg": 1.25,
-          "note": "4a e 4b in superserie, 75\" tra un giro e l'altro."
+          "recuperoSec": 60,
+          "note": ""
         }
       ]
     },
@@ -315,10 +263,7 @@
           "ripMin": 5,
           "ripMax": 5,
           "recuperoSec": 180,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 2.5,
-          "note": "2-3 serie leggere in salita prima delle serie di lavoro (non contano).",
+          "note": "",
           "varianteFacile": "Stacco con trap bar, o stacco da rialzo"
         },
         {
@@ -330,9 +275,6 @@
           "ripMin": 10,
           "ripMax": 10,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 2.5,
           "note": "",
           "varianteFacile": "Affondi sul posto, o step up su panca"
         },
@@ -344,39 +286,30 @@
           "rip": "12",
           "ripMin": 12,
           "ripMax": 12,
-          "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 2.5,
-          "note": "Incremento convenzionale di una tacca sulla macchina."
+          "recuperoSec": 60,
+          "note": ""
         },
         {
           "id": "alzate-laterali",
           "nome": "Alzate laterali con manubri",
-          "gruppo": "petto-spalle",
+          "gruppo": "spalle",
           "serie": 3,
           "rip": "12-15",
           "ripMin": 12,
           "ripMax": 15,
-          "recuperoSec": 0,
-          "carico": "esterno",
-          "superserie": "4",
-          "incrementoKg": 1.25,
+          "recuperoSec": 45,
           "note": ""
         },
         {
           "id": "alzate-posteriori-cavi",
           "nome": "Alzate posteriori ai cavi (o su panca inclinata)",
-          "gruppo": "petto-spalle",
+          "gruppo": "spalle",
           "serie": 3,
           "rip": "15",
           "ripMin": 15,
           "ripMax": 15,
-          "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": "4",
-          "incrementoKg": 2.5,
-          "note": "4a e 4b in superserie, 60\" tra un giro e l'altro. Incremento convenzionale di una tacca ai cavi."
+          "recuperoSec": 45,
+          "note": ""
         },
         {
           "id": "calf-in-piedi",
@@ -387,10 +320,7 @@
           "ripMin": 15,
           "ripMax": 15,
           "recuperoSec": 45,
-          "carico": "esterno",
-          "superserie": null,
-          "incrementoKg": 2.5,
-          "note": "Incremento convenzionale di una tacca sulla macchina."
+          "note": ""
         }
       ]
     }

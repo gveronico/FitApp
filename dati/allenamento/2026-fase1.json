@@ -1,7 +1,7 @@
 {
   "id": "2026-fase1",
   "nome": "Fase 1 — Avvicinamento",
-  "fonte": "ALLENAMENTO.md v5.0",
+  "fonte": "ALLENAMENTO.md v5.1",
   "settimane": 6,
   "monitorata": true,
   "regole": [
@@ -13,7 +13,6 @@
     "Recuperi: 90\" sui primi due esercizi, 60\" sugli altri.",
     "I carichi entrano nei calcoli dei progressi dal primo allenamento."
   ],
-  "progressione": null,
   "sedute": [
     {
       "id": "upper-a",
@@ -30,29 +29,25 @@
         {
           "id": "panca-piana-manubri",
           "nome": "Panca piana con manubri",
-          "gruppo": "petto-spalle",
+          "gruppo": "petto",
           "serie": 3,
           "rip": "12-10-8",
           "ripSerie": [12, 10, 8],
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
           "id": "croci-panca-piana",
           "nome": "Croci su panca piana con manubri",
-          "gruppo": "petto-spalle",
+          "gruppo": "petto",
           "serie": 3,
           "rip": "12-10-8",
           "ripSerie": [12, 10, 8],
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
@@ -65,8 +60,6 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
@@ -79,8 +72,6 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
@@ -93,8 +84,6 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         }
       ]
@@ -121,8 +110,6 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
           "note": "",
           "varianteFacile": "Goblet squat, squat al multipower, box squat"
         },
@@ -136,8 +123,6 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
@@ -150,22 +135,18 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
           "id": "military-press-manubri",
           "nome": "Military press con manubri, seduto",
-          "gruppo": "petto-spalle",
+          "gruppo": "spalle",
           "serie": 3,
           "rip": "12-10-8",
           "ripSerie": [12, 10, 8],
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
@@ -178,8 +159,6 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         }
       ]
@@ -206,8 +185,6 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
@@ -220,22 +197,18 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
           "id": "panca-inclinata-manubri",
           "nome": "Panca inclinata 45° con manubri",
-          "gruppo": "petto-spalle",
+          "gruppo": "petto",
           "serie": 3,
           "rip": "12-10-8",
           "ripSerie": [12, 10, 8],
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
@@ -247,37 +220,32 @@
           "ripSerie": [12, 10, 8],
           "ripMin": 8,
           "ripMax": 12,
-          "recuperoSec": 0,
-          "carico": "esterno",
-          "superserie": "4",
+          "recuperoSec": 60,
           "note": ""
         },
         {
           "id": "face-pull-cavi",
           "nome": "Face pull ai cavi",
-          "gruppo": "petto-spalle",
+          "gruppo": "spalle",
           "serie": 3,
           "rip": "12-10-8",
           "ripSerie": [12, 10, 8],
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": "4",
-          "note": "4a e 4b in superserie, 60\" tra un giro e l'altro."
+          "note": ""
         },
         {
-          "id": "plank",
-          "nome": "Plank",
+          "id": "situp-disco-petto",
+          "nome": "Sit up su panca inclinata con disco al petto",
           "gruppo": "addome",
           "serie": 3,
-          "rip": "30-40\"",
-          "ripMin": 30,
-          "ripMax": 40,
+          "rip": "12-10-8",
+          "ripSerie": [12, 10, 8],
+          "ripMin": 8,
+          "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "tempo",
-          "superserie": null,
-          "note": "A tempo: qui il numero sono secondi, il 12-10-8 non si applica."
+          "note": ""
         }
       ]
     },
@@ -302,8 +270,6 @@
           "ripMin": 8,
           "ripMax": 8,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
           "note": "Carico leggero e ripetizioni fisse sulle 8: serve a imparare il movimento in vista dello stacco da terra della Fase 2."
         },
         {
@@ -316,8 +282,6 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 90,
-          "carico": "esterno",
-          "superserie": null,
           "note": "Le ripetizioni sono per gamba."
         },
         {
@@ -330,22 +294,18 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
           "id": "alzate-laterali",
           "nome": "Alzate laterali con manubri",
-          "gruppo": "petto-spalle",
+          "gruppo": "spalle",
           "serie": 3,
           "rip": "12-10-8",
           "ripSerie": [12, 10, 8],
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         },
         {
@@ -358,12 +318,13 @@
           "ripMin": 8,
           "ripMax": 12,
           "recuperoSec": 60,
-          "carico": "esterno",
-          "superserie": null,
           "note": ""
         }
       ]
     }
   ],
-  "allenamentiDaSettimana": { "1": 2, "3": 4 }
+  "allenamentiDaSettimana": {
+    "1": 2,
+    "3": 4
+  }
 }

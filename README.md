@@ -8,13 +8,13 @@ Allenamento e alimentazione di Giuseppe e Corinna. Si apre da un link, si aggiun
 
 **Android (Chrome)** — apri il link, menù a tre puntini, **Installa app**.
 
-Al primo avvio l'app chiede tre cose: di chi è il telefono, la data del primo allenamento e il peso corporeo. Il peso dell'altra persona si mette in **Altro**. Il peso serve solo a calcolare il carico di trazioni e assistite, non viene tracciato nel tempo.
+Al primo avvio l'app chiede due cose: di chi è il telefono e la data del primo allenamento.
 
 ## Dove stanno i dati
 
 Sul telefono, nella memoria del browser. Nessun account, nessun server, nessun upload: le foto non escono mai da lì.
 
-**Un telefono solo per tutti e due** (dal 29/09/2026). Giuseppe e Corinna si allenano insieme e segna tutto Giuseppe: in **Oggi** si sceglie chi si allena (*Insieme*, *Giuseppe* o *Corinna*), e in sessione ogni esercizio ha un riquadro a testa, ognuno coi suoi carichi, il suo storico e il suo peso corporeo. **Progressi** e **Foto** hanno in cima l'interruttore *Giuseppe / Corinna*. I dati di prima diventano, alla prima apertura, del proprietario del telefono. Un backup fatto dal telefono dell'altra persona si importa senza toccare le impostazioni: si aggiungono i suoi allenamenti e le sue foto.
+**Un telefono solo per tutti e due** (dal 29/09/2026). Giuseppe e Corinna si allenano insieme e segna tutto Giuseppe: in **Oggi** si sceglie chi si allena (*Insieme*, *Giuseppe* o *Corinna*), e in sessione ogni esercizio ha un riquadro a testa, ognuno coi suoi carichi e il suo storico. **Progressi** e **Foto** hanno in cima l'interruttore *Giuseppe / Corinna*. I dati di prima diventano, alla prima apertura, del proprietario del telefono. Un backup fatto dal telefono dell'altra persona si importa senza toccare le impostazioni: si aggiungono i suoi allenamenti e le sue foto.
 
 Se si cancella l'app o si cambia telefono i dati se ne vanno. Per questo in **Altro** c'è **Esporta backup**, che genera un file `.zip` con carichi e foto da salvare su iCloud. L'app avvisa quando l'ultimo backup ha più di 30 giorni.
 
@@ -22,25 +22,24 @@ Se si cancella l'app o si cambia telefono i dati se ne vanno. Per questo in **Al
 
 Tutto si cambia dall'app, senza chiedere niente a nessuno. C'è un pulsante **Modifica** in:
 
-- **Scheda → Modifica** → l'editor del piano, nella Scheda stessa (Fine torna alla lettura): nome e gruppo di ogni esercizio (il gruppo è quello su cui si sommano i progressi), serie, ripetizioni, recupero, tipo di carico, superserie, note; esercizi aggiunti, tolti, riordinati; sedute rinominate, spostate di giorno, aggiunte o tolte. Nome e gruppo valgono in tutti i piani; il resto vale per quel piano. L'identificativo dell'esercizio non cambia mai, quindi lo storico dei carichi non si spezza. Scrivendo il nome di un esercizio già fatto in un altro piano, si riusa quello.
+- **Scheda → Modifica** → l'editor del piano, nella Scheda stessa (Fine torna alla lettura): nome e gruppo di ogni esercizio (il gruppo è quello su cui si sommano i progressi), serie, ripetizioni, recupero, note; esercizi aggiunti, tolti, riordinati; sedute rinominate, spostate di giorno, aggiunte o tolte. Nome e gruppo valgono in tutti i piani; il resto vale per quel piano. L'identificativo dell'esercizio non cambia mai, quindi lo storico dei carichi non si spezza. Scrivendo il nome di un esercizio già fatto in un altro piano, si riusa quello.
 - **Scheda → Altri piani → Crea un piano nuovo** → vuoto o copiato da quello attivo. Vale quando lo si attiva.
 - **Sessione → Modifica** (sopra ogni esercizio) → serie e ripetizioni di oggi, o salta l'esercizio. Con la spunta finisce anche nella scheda.
+- **Sessione → Cambia** (sopra ogni esercizio, finché nessuno ci ha scritto una serie) → un altro esercizio al posto di quello della scheda, per oggi e per tutti e due. Prima si sceglie il gruppo (petto, dorso, spalle, braccia, gambe, addome), poi un esercizio di quel gruppo già fatto in qualche scheda, oppure se ne crea uno nuovo. Serie, ripetizioni e recupero restano quelli della scheda; i carichi si salvano sull'esercizio fatto davvero. **Rimetti** torna a quello della scheda.
 - **Cibo → Settimana** → ogni alimento di pasti, colazione e spuntini si accende o si spegne con un tocco, anche senza Modifica: acceso va nella spesa. Con Modifica ✕ lo toglie, **+ Aggiungi** ne mette uno nuovo, e di un pasto si cambiano nome, piatto e nota.
 - **Cibo → Spesa** → una lista sola, fatta dalla dieta. ✎ cambia il reparto di una voce (o toglie una voce fissa, come l'olio); in fondo si aggiungono voci che non stanno nella dieta.
 
-Le modifiche restano su quel telefono ed entrano nel backup. In **Altro → Modifiche ai piani** si vede quante sono e si azzerano tutte insieme, rimettendo i piani come stanno nel repo (i piani creati dall'app restano).
-
-Un piano del repo modificato dall'app diventa una **copia sul telefono**. Se poi Claude aggiorna quel file, Scheda e l'editor lo segnalano e si sceglie quale tenere.
+Le modifiche restano su quel telefono ed entrano nel backup. Valgono quanto il piano scritto nel repo: un piano cambiato dal telefono diventa una **copia sul telefono**, e da lì in poi la scheda è quella, senza avvisi e senza "torna all'originale". Se poi cambia il file nel repo, sul telefono non arriva: la modifica si rifà dal telefono, o arriva come piano nuovo.
 
 ## Allenamento ridotto
 
-Ogni serie confermata con **Fatta** è salvata subito. Quelle in cui si è scritto il peso senza premere Fatta si salvano uscendo (**Esci**) o chiudendo. **Chiudi allenamento** con serie mancanti chiude come allenamento ridotto: quel che è fatto conta nei progressi, e in Oggi e in Scheda la seduta risulta **in parte · 9/14 serie**. L'aumento di carico si suggerisce solo sugli esercizi completati.
+Ogni serie confermata con **Fatta** è salvata subito. Quelle in cui si è scritto il peso senza premere Fatta si salvano uscendo (**Esci**) o chiudendo. **Chiudi allenamento** con serie mancanti chiude come allenamento ridotto: quel che è fatto conta nei progressi, e in Oggi e in Scheda la seduta risulta **in parte · 9/14 serie**.
 
-**Salta**, in cima a ogni esercizio, lo toglie per oggi e passa al successivo; su un esercizio cominciato diventa **Salta il resto**: le serie fatte restano. Un esercizio saltato non conta come mancante, quindi l'allenamento risulta **✓ fatta · 2 saltati**. Chiudendo con serie ancora da fare si sceglie tra **Salta quello che manca e chiudi** (fatto, con i salti annotati), **Annulla l'allenamento** (non l'hai fatto: sessione e serie si cancellano, non conta nella settimana) e **Continua l'allenamento**. Un allenamento aperto e lasciato senza serie non resta appeso: uscendo sparisce. Gli esercizi saltati, anche solo in parte, non fanno scattare l'aumento di carico.
+**Salta**, in cima a ogni esercizio, lo toglie per oggi e passa al successivo; su un esercizio cominciato diventa **Salta il resto**: le serie fatte restano. Un esercizio saltato non conta come mancante, quindi l'allenamento risulta **✓ fatta · 2 saltati**. Chiudendo con serie ancora da fare si sceglie tra **Salta quello che manca e chiudi** (fatto, con i salti annotati), **Annulla l'allenamento** (non l'hai fatto: sessione e serie si cancellano, non conta nella settimana) e **Continua l'allenamento**. Un allenamento aperto e lasciato senza serie non resta appeso: uscendo sparisce.
 
 ## Aggiornare i piani
 
-Il canale principale per le cose grosse — una scheda nuova, una settimana alimentare diversa — resta Claude: sono file JSON in `dati/`, e li scrive Claude in chat partendo da `ALLENAMENTO.md` e `ALIMENTAZIONE.md`. Quello che si cambia dall'app non torna nel repo.
+Per le cose grosse — una scheda nuova, una settimana alimentare diversa — conviene Claude: sono file JSON in `dati/`, e li scrive Claude in chat partendo da `ALLENAMENTO.md` e `ALIMENTAZIONE.md`. Quello che si cambia dall'app non torna nel repo.
 
 Per una scheda nuova:
 

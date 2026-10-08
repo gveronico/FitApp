@@ -277,7 +277,7 @@ export function contaNeiCalcoli(s, monitorati = null) {
 
 /**
  * Media degli incrementi per gruppo muscolare — braccia, gambe, dorso,
- * petto e spalle, addome. È la divisione con cui si guardano i progressi.
+ * petto, spalle, addome. È la divisione con cui si guardano i progressi.
  * Entrano solo gli esercizi conteggiabili, come nella media generale.
  */
 export function aggregaPerGruppo(esercizi, gruppi) {
@@ -315,6 +315,11 @@ async function costruisciMappe() {
         if (es.gruppo && !gruppiEsercizi.has(es.id)) gruppiEsercizi.set(es.id, es.gruppo);
       });
     });
+  });
+  // Gli esercizi creati dal telefono con Cambia non stanno in nessun piano.
+  (await piani.catalogoEsercizi()).forEach((es) => {
+    if (!nomiEsercizi.has(es.id)) nomiEsercizi.set(es.id, es.nome);
+    if (es.gruppo && !gruppiEsercizi.has(es.id)) gruppiEsercizi.set(es.id, es.gruppo);
   });
   return { nomiEsercizi, nomiSedute, gruppiEsercizi };
 }

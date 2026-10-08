@@ -1,6 +1,8 @@
 # Schema dei dati
 
-I file in `dati/` sono **il piano**: li scrive Claude, non l'app. L'app li legge e basta.
+I file in `dati/` sono **il piano di partenza**: li scrive Claude, l'app li legge e basta.
+Un piano cambiato dal telefono diventa una copia sul telefono, e da lì in poi vale quella
+(vedi *Personalizzazioni*, in fondo).
 Quello che inserisce l'utente (carichi, foto, spunte) sta in IndexedDB e non tocca mai questi file.
 
 ## Regola ferrea sugli `id`
@@ -35,7 +37,6 @@ dalla `dataInizio` impostata dall'utente e sceglie il piano il cui intervallo la
   "regole": [                 // mostrate in cima alla scheda, testo libero
     "Ci si ferma 4 ripetizioni prima del cedimento nelle settimane 1-2, 3 nelle 3-4."
   ],
-  "progressione": null,       // vedi sotto, solo per le fasi monitorate
   "sedute": [
     {
       "id": "upper-a",
@@ -50,18 +51,14 @@ dalla `dataInizio` impostata dall'utente e sceglie il piano il cui intervallo la
         {
           "id": "panca-piana-manubri",
           "nome": "Panca piana con manubri",
-          "gruppo": "petto-spalle",         // vedi sotto. Obbligatorio: senza, l'esercizio
+          "gruppo": "petto",                // vedi sotto. Obbligatorio: senza, l'esercizio
                                             // sparisce dagli aggregati per gruppo
-          "serie": 2,
-          "serieDaSettimana": { "3": 3 },   // dalla settimana 3 diventano 3 serie. Assente = fisse
+          "serie": 3,
           "rip": "10-12",                   // come si legge a schermo
           "ripSerie": [12, 10, 8],          // facoltativo: un numero per serie, vedi sotto
           "ripMin": 10,
-          "ripMax": 12,                     // usato per la doppia progressione
-          "recuperoSec": 90,
-          "carico": "esterno",              // vedi tabella sotto
-          "superserie": null,               // "4" lega 4a e 4b: stesso valore = stesso giro
-          "incrementoKg": 2.5,              // di quanto si sale quando si progredisce
+          "ripMax": 12,
+          "recuperoSec": 90,                // sempre più di zero: ogni esercizio ha il suo recupero
           "note": "",                       // riga sotto il nome, testo libero
           "varianteFacile": "Goblet squat"  // per Corinna; omesso se non prevista
         }
@@ -73,15 +70,21 @@ dalla `dataInizio` impostata dall'utente e sceglie il piano il cui intervallo la
 
 ### `gruppo` — il gruppo muscolare
 
-Uno di questi cinque, esatto. È la divisione con cui l'app aggrega i progressi.
+Uno di questi sei, esatto. È la divisione con cui l'app aggrega i progressi.
 
-| Valore | Etichetta a schermo |
-|---|---|
-| `braccia` | Braccia (bicipiti e tricipiti) |
-| `gambe` | Gambe |
-| `dorso` | Dorso |
-| `petto-spalle` | Petto e spalle |
-| `addome` | Addome |
+| Valore | Etichetta a schermo | Cosa ci sta |
+|---|---|---|
+| `braccia` | Braccia | Bicipiti e tricipiti |
+| `gambe` | Gambe | Tutto il treno inferiore, polpacci compresi |
+| `dorso` | Dorso | Lat machine, rematore, pulley |
+| `petto` | Petto | Tutte le spinte su panca, anche inclinata a 45°, con manubri, bilanciere o macchina; croci |
+| `spalle` | Spalle | Spinte sopra la testa (military press), alzate laterali e posteriori, face pull |
+| `addome` | Addome | Crunch, sit up |
+
+Le spinte su panca lavorano anche le spalle, ma stanno nel petto: un esercizio ha un
+gruppo solo. Fino al 05/10/2026 c'era `petto-spalle`: se lo trova ancora (una copia del
+piano sul telefono), l'app lo smista dal nome dell'esercizio — military, alzate e face
+pull vanno in spalle, il resto in petto.
 
 L'elenco vive in `js/piani.js` (`GRUPPI`): aggiungerne uno significa toccare quello,
 non solo i JSON. Un esercizio senza `gruppo` continua a funzionare ma finisce in
@@ -100,38 +103,20 @@ Cosa cambia nell'app:
 - l'intestazione della colonna diventa `Rip · 12-10-8`.
 
 Senza `ripSerie` non cambia niente: vale il range in `rip`, come prima.
-Sugli esercizi a tempo (`"carico": "tempo"`) non si mette: lì il numero sono secondi.
 
-### `carico` — come si registra il peso
+### Cosa non c'è più (dal 05/10/2026)
 
-| Valore | Significato | Cosa chiede l'app |
-|---|---|---|
-| `esterno` | Bilanciere, manubri, macchina | I kg, direttamente |
-| `assistito` | Trazioni assistite | L'assistenza letta sulla macchina. Registra `pesoCorporeo − assistenza` |
-| `corpoLibero` | Trazioni, plank | L'eventuale zavorra. Registra `pesoCorporeo + zavorra` |
-| `tempo` | Plank | I secondi al posto delle ripetizioni |
-
-### `caricoAlternativo` — lo stesso esercizio fatto in due modi
-
-Campo facoltativo, accanto a `carico`. Vale quando lo stesso movimento si può fare in due
-modi che si registrano in modo diverso — trazioni libere (`corpoLibero`) o alla macchina
-assistita (`assistito`). L'app mostra un interruttore sopra le serie: `carico` è il modo
-predefinito, `caricoAlternativo` l'altro, e la scelta si ricorda. In entrambi i casi la serie
-viene salvata con lo stesso `id` e con il carico reale in kg, quindi lo storico resta
-confrontabile: l'`id` non si duplica e non si rinomina.
-
-### Esercizio che entra solo da una certa settimana
-
-Non c'è un campo dedicato. Si aggiunge come esercizio normale nella posizione giusta,
-con `"serie": 0` e `"serieDaSettimana": { "<settimana>": <valore> }` (0 serie finché non
-si arriva a quella settimana, poi il valore indicato), spiegando in `note` da quale
-settimana entra e perché. Esempio (non più in uso dalla Fase 1 v5.0): un esercizio
-che entra dalla settimana 3 si scrive `"serie": 0, "serieDaSettimana": { "3": 2 }`.
+Tolti per semplicità, dal piano e dal codice: `superserie`, `incrementoKg`, `carico`
+(con i tipi `assistito`, `corpoLibero`, `tempo`), `caricoAlternativo`, `serieDaSettimana`
+e `progressione`. Ogni esercizio si registra allo stesso modo, `kg × ripetizioni`, con il
+suo recupero. Quando salire di carico lo dicono le `regole` del piano, in parole: l'app non
+lo calcola. Se un file vecchio o una copia sul telefono hanno ancora questi campi, l'app
+li ignora.
 
 ### `allenamentiDaSettimana` — quanti allenamenti a settimana
 
-Facoltativo. Stessa forma di `serieDaSettimana`: `{ "1": 2, "3": 4 }` vuol dire due
-allenamenti nelle settimane 1-2 e quattro dalla 3. Assente = uno per seduta.
+Facoltativo. `{ "1": 2, "3": 4 }` vuol dire due allenamenti nelle settimane 1-2 e
+quattro dalla 3. Assente = uno per seduta.
 Non vincola niente: in Oggi fa solo il conto "fatti 1 di 2" della settimana. Quali
 sedute fare lo sceglie l'utente — in Oggi ogni seduta del piano si può avviare in
 qualsiasi giorno, e quella già fatta nella settimana viene segnalata.
@@ -139,16 +124,6 @@ qualsiasi giorno, e quella già fatta nella settimana viene segnalata.
 Le sedute **non hanno `giorno`** (dal 29/09/2026): sono allenamenti da fare nella
 settimana, e quale fare lo si sceglie in Oggi. L'ordine nel file è quello in cui l'app
 le propone. Un `giorno` rimasto in un file vecchio viene ignorato.
-
-### `progressione`
-
-```jsonc
-"progressione": {
-  "tipo": "doppia",
-  "descrizione": "Si sale di carico quando tutte le serie chiudono al numero alto di ripetizioni."
-}
-```
-`null` nelle fasi non monitorate: l'app non suggerisce aumenti.
 
 ## Piano alimentare — `dati/cibo/*.json`
 
@@ -259,12 +234,16 @@ Le schede modificate dall'app non sono personalizzazioni sparse ma **copie inter
 sempre in `impostazioni`:
 
 ```
-piano:<idPiano>   { piano, base, locale, meta, modificato }
+piano:<idPiano>   { piano, locale, meta, modificato }
 ```
 
 - `piano` è il JSON completo, nella stessa forma dei file qui sopra;
-- `base` è la firma del file del repo da cui la copia è partita. Se Claude cambia quel
-  file, la firma non torna più e l'app chiede quale tenere;
+- **la copia vince sul file, sempre e senza chiedere** (dal 05/10/2026). Le modifiche dal
+  telefono valgono quanto quelle scritte qui: niente avviso se il file cambia, niente
+  "rimetti il piano originale". Conseguenza: **se un piano è già stato cambiato dal
+  telefono, una modifica al suo file non arriva sul telefono.** Per far arrivare una
+  modifica di Claude lì, o la si fa dal telefono, o si scrive un piano nuovo con un `id`
+  nuovo. Le copie di prima avevano anche `base` (la firma del file): non si usa più;
 - `locale: true` è un piano creato dall'app, che nel repo non esiste. `meta` ne tiene
   `settimanaDa`, `settimanaA`, `monitorata`. Il calendario non lo sceglie mai da solo:
   vale quando lo si forza.
@@ -274,6 +253,31 @@ piano, così i progressi per gruppo non cambiano da una scheda all'altra.
 
 Le sessioni portano anche `seriePreviste` (dopo le variazioni del giorno), `serieFatte`,
 `ridotto` e `variazioni: { <idEsercizio>: { serie, rip, ripMin, ripMax, ripSerie } }`.
+
+**Esercizi cambiati in sessione** (dal 08/10/2026). Con *Cambia* un esercizio della scheda
+si sostituisce per quel giorno:
+
+```
+sostituzioni: { <idEsercizioNellaScheda>: <idEsercizioFatto> }
+```
+
+- le serie si salvano con l'`esercizioId` dell'esercizio **fatto davvero**: lo storico è
+  il suo;
+- serie, ripetizioni e recupero restano quelli della scheda. `variazioni` resta con la
+  chiave dell'esercizio **della scheda**, così cambiare esercizio non perde le modifiche
+  di oggi;
+- allenandosi in due, le due sessioni hanno le stesse `sostituzioni`.
+
+Si sceglie dal catalogo: gli esercizi di tutti i piani più quelli creati dal telefono
+(`piani.catalogoEsercizi()`). Un esercizio creato dal telefono sta in `impostazioni`:
+
+```
+esercizio:<id>   { locale: true, nome, gruppo, recuperoSec, creato }
+```
+
+con id `app-<slug del nome>-<ms in base 36>`. Non ha il prefisso `pz:`, entra nel backup.
+Creandone uno con il nome di un esercizio che esiste già (maiuscole e accenti non contano)
+si riusa quello.
 Le righe scritte e non confermate stanno in `bozze:<idSessione>` finché non si salvano.
 
 Due cose da non dimenticare:
@@ -283,5 +287,3 @@ Due cose da non dimenticare:
 2. **Le voci di cibo non hanno un id nel piano**, quindi la chiave è il loro testo.
    Riscrivere quel testo in un piano nuovo lascia orfana la personalizzazione. Va bene
    così: un piano nuovo arriva già scritto come lo si voleva.
-
-`Altro → Modifiche ai piani` dice quante sono e le toglie tutte insieme.

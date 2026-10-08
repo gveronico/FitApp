@@ -4,9 +4,14 @@
 
    In due (dal 29/09/2026). Giuseppe e Corinna fanno gli stessi esercizi, e li
    segna tutti Giuseppe dal suo telefono. Ognuno ha la sua sessione, i suoi
-   carichi, il suo storico e il suo peso corporeo: sotto ogni esercizio c'è un
+   carichi e il suo storico: sotto ogni esercizio c'è un
    riquadro a testa. In comune restano l'esercizio a schermo, il cronometro, il
    recupero e il tastierino. Chi si allena lo si sceglie in Oggi.
+
+   Cambia (dal 08/10/2026): un esercizio della scheda si sostituisce per oggi con
+   un altro dello stesso catalogo, scelto prima per gruppo, o con uno creato lì.
+   Le serie si salvano sull'esercizio fatto davvero; serie, ripetizioni e recupero
+   restano quelli della scheda.
 
    Rotta a schermo pieno: la barra di navigazione è nascosta dal router, l'uscita
    la fornisce il pulsante Esci in testata. */
@@ -32,11 +37,9 @@ export async function monta(contenitore, parametri) {
     return;
   }
 
-  /* Se manca la data di inizio si conta come settimana 1, e lo si dice. */
-  const settimana = st.settimanaNellaFase || 1;
-  const delPiano = (seduta.esercizi || []).filter((e) => piani.serieDi(e, settimana) > 0);
+  const delPiano = (seduta.esercizi || []).filter((e) => e.serie > 0);
   if (!delPiano.length) {
-    mostraVuoto(contenitore, 'Questa seduta non ha esercizi in questa settimana.');
+    mostraVuoto(contenitore, 'Questa seduta non ha esercizi.');
     return;
   }
 
@@ -51,24 +54,33 @@ export async function monta(contenitore, parametri) {
   const chi = store.PERSONE.filter((p) => scelti.includes(p) || giaQui.includes(p));
   const inDue = chi.length > 1;
 
+  /* Gli esercizi che si possono mettere al posto di quelli della scheda. */
+  const catalogo = await piani.catalogoEsercizi();
+  const perId = new Map(catalogo.map((e) => [e.id, e]));
+
+  /* Esercizi cambiati per oggi: { <id nella scheda>: <id di quello che si fa> }.
+     Valgono per tutti e due, come Modifica: se uno dei due ha cominciato prima,
+     l'altro li prende da lui. */
+  const sessioni = [];
+  for (const persona of chi) sessioni.push(await apriSessione(st, seduta, persona));
+  const sostituzioni = Object.assign({}, ...sessioni.map((s) => s.sostituzioni || {}));
+
   /** Tutto quello che è di una persona sola. */
   const P = [];
-  for (const persona of chi) P.push(await preparaPersona(persona));
+  for (let i = 0; i < chi.length; i += 1) P.push(await preparaPersona(chi[i], sessioni[i]));
 
-  async function preparaPersona(persona) {
-    const pesoCorporeo = await store.pesoDi(persona);
-    const sessione = await apriSessione(st, seduta, persona);
-
+  async function preparaPersona(persona, sessione) {
     /* Serie e ripetizioni cambiate per oggi: stanno sulla sessione, il piano non
-       si tocca. Un esercizio a 0 serie è saltato — resta in elenco, si rimette. */
+       si tocca. Un esercizio a 0 serie è saltato — resta in elenco, si rimette.
+       La chiave è l'id dell'esercizio nella scheda, anche se oggi è cambiato. */
     if (!sessione.variazioni) sessione.variazioni = {};
+    const daAllineare = JSON.stringify(sessione.sostituzioni || {}) !== JSON.stringify(sostituzioni);
+    sessione.sostituzioni = { ...sostituzioni };
 
     const p = {
       persona,
       nome: store.nomePersona(persona),
       sessione,
-      pesoCorporeo,
-      pesoValido: Number(pesoCorporeo) > 0,
       esercizi: [],
       /** chiave -> serie salvata. La chiave lega esercizio e indice della serie. */
       registrate: new Map(),
@@ -76,8 +88,6 @@ export async function monta(contenitore, parametri) {
       storico: new Map(),
       /** esercizio -> testo della nota, vedi fissaNota(). */
       note: new Map(),
-      /** esercizio con caricoAlternativo -> modo scelto. Si ricorda tra una seduta e l'altra. */
-      modi: new Map(),
       /** chiave -> { carico, rip } come stringhe digitate, non ancora numeri. */
       bozze: new Map(),
       /* Le righe dove si è scritto qualcosa senza premere Fatta. Si tengono in
@@ -91,7 +101,7 @@ export async function monta(contenitore, parametri) {
     };
     p.esercizi = delPiano.map((e) => conVariazioni(p, e));
 
-    if (sessione.seriePreviste !== totaleSerie(p)) {
+    if (daAllineare || sessione.seriePreviste !== totaleSerie(p)) {
       sessione.seriePreviste = totaleSerie(p);
       await store.salvaSessione(sessione);
     }
@@ -104,13 +114,7 @@ export async function monta(contenitore, parametri) {
       p.registrate.set(chiave(s.esercizioId, s.indice), s);
     });
 
-    await Promise.all(p.esercizi.map(async (e) => {
-      const tutte = await store.serieDiEsercizio(e.id, persona);
-      const altre = tutte.filter((s) => s.sessioneId !== sessione.id);
-      if (!altre.length) { p.storico.set(e.id, null); return; }
-      const ultimaSessione = altre[altre.length - 1].sessioneId;
-      p.storico.set(e.id, altre.filter((s) => s.sessioneId === ultimaSessione));
-    }));
+    await Promise.all(p.esercizi.map((e) => caricaStorico(p, e.id)));
 
     /* La nota sta sulla prima serie registrata, qualunque sia il suo indice:
        finché non c'è nessuna serie la nota resta qui, in memoria. */
@@ -118,13 +122,6 @@ export async function monta(contenitore, parametri) {
       const conNota = confermate(p, e).find((s) => s.note);
       p.note.set(e.id, conNota ? conNota.note : '');
     });
-
-    // Prima del 29/09/2026 il modo era uno per telefono: vale per il proprietario.
-    await Promise.all(p.esercizi.filter((e) => e.caricoAlternativo).map(async (e) => {
-      let salvato = await store.leggi(`modoCarico:${persona}:${e.id}`);
-      if (salvato == null && (!profilo || profilo === persona)) salvato = await store.leggi(`modoCarico:${e.id}`);
-      if (salvato === e.carico || salvato === e.caricoAlternativo) p.modi.set(e.id, salvato);
-    }));
 
     const salvate = (await store.leggi(p.chiaveBozze)) || {};
     for (const [k, v] of Object.entries(salvate)) {
@@ -135,35 +132,45 @@ export async function monta(contenitore, parametri) {
     return p;
   }
 
-  /** L'esercizio del piano con le variazioni di oggi sopra. */
-  function conVariazioni(p, e) {
-    const v = p.sessione.variazioni[e.id];
+  /** L'ultima volta su un esercizio, fuori da questa sessione: serve a precompilare. */
+  async function caricaStorico(p, id) {
+    const tutte = await store.serieDiEsercizio(id, p.persona);
+    const altre = tutte.filter((s) => s.sessioneId !== p.sessione.id);
+    if (!altre.length) { p.storico.set(id, null); return; }
+    const ultimaSessione = altre[altre.length - 1].sessioneId;
+    p.storico.set(id, altre.filter((s) => s.sessioneId === ultimaSessione));
+  }
+
+  /**
+   * L'esercizio che si fa oggi al posto di quello della scheda. Nome e gruppo
+   * sono suoi; serie, ripetizioni e recupero restano quelli della scheda.
+   * `slotId` è sempre l'id della scheda: è la chiave delle variazioni.
+   */
+  function eseguito(slot) {
+    const id = sostituzioni[slot.id];
+    if (!id || id === slot.id) return { ...slot, slotId: slot.id };
+    const c = perId.get(id) || { id, nome: id, gruppo: null };
+    const out = {
+      ...slot, id, nome: c.nome, gruppo: c.gruppo, slotId: slot.id, alPostoDi: slot.nome,
+    };
+    delete out.note;
+    delete out.varianteFacile;
+    return out;
+  }
+
+  /** L'esercizio del piano, cambiato se è stato cambiato, con le variazioni di oggi sopra. */
+  function conVariazioni(p, slot) {
+    const e = eseguito(slot);
+    const v = p.sessione.variazioni[slot.id];
     if (!v) return e;
     const out = { ...e, ...v, variato: true };
-    if (v.serie != null) delete out.serieDaSettimana;
     if (v.ripSerie === null) delete out.ripSerie;
     return out;
   }
 
   /** Serie previste oggi: quelle del piano, con le variazioni. */
   function totaleSerie(p) {
-    return p.esercizi.reduce((t, e) => t + piani.serieDi(e, settimana), 0);
-  }
-
-  /** Il modo di calcolo attivo per l'esercizio: quello predefinito o l'alternativo. */
-  function modoDi(p, e) {
-    return p.modi.get(e.id) || e.carico;
-  }
-
-  /** Copia dell'esercizio con il modo scelto al posto di `carico`, per piani.js. */
-  function perCalcolo(p, e) {
-    return p.modi.has(e.id) ? { ...e, carico: p.modi.get(e.id) } : e;
-  }
-
-  /** Senza peso corporeo questi carichi non si possono calcolare. */
-  function richiedePeso(p, e) {
-    const modo = modoDi(p, e);
-    return modo === 'assistito' || modo === 'corpoLibero';
+    return p.esercizi.reduce((t, e) => t + e.serie, 0);
   }
 
   function ricordaBozze(p) {
@@ -240,7 +247,7 @@ export async function monta(contenitore, parametri) {
   let fineRecupero = 0;
 
   function avviaRecupero(sec) {
-    if (!sec || sec <= 0) return;           // primo esercizio di una superserie
+    if (!sec || sec <= 0) return;
     fineRecupero = Date.now() + sec * 1000;
     pannelloRecupero.hidden = false;
     aggiornaFondo();
@@ -289,9 +296,7 @@ export async function monta(contenitore, parametri) {
     const campo = campi.get(`${dom(p, esercizio.id, indice)}:${tipo}`);
     if (campo) campo.classList.add('ses-campo-attivo');
 
-    const cosa = tipo === 'carico'
-      ? piani.etichettaCarico(perCalcolo(p, esercizio))
-      : (esercizio.carico === 'tempo' ? 'Secondi' : 'Ripetizioni');
+    const cosa = tipo === 'carico' ? 'Carico' : 'Ripetizioni';
     etichettaAttivo.textContent = inDue ? `${p.nome} · ${cosa}` : cosa;
     valoreAttivo.textContent = bozza(p, esercizio, indice)[tipo] || '–';
     tastoVirgola.disabled = tipo !== 'carico';
@@ -323,6 +328,7 @@ export async function monta(contenitore, parametri) {
     dati[attivo.tipo] = v;
     p.toccate.add(chiave(attivo.esercizio.id, attivo.indice));
     ricordaBozze(p);
+    aggiornaCambia();
     tocco(8);
     aggiornaCampo(p, attivo.esercizio, attivo.indice, attivo.tipo);
     valoreAttivo.textContent = v || '–';
@@ -342,11 +348,8 @@ export async function monta(contenitore, parametri) {
     const k = chiave(esercizio.id, indice);
     if (!p.bozze.has(k)) {
       const riferimento = p.registrate.get(k) || precedente(p, esercizio, indice);
-      const digitato = riferimento ? aDigitato(p, esercizio, riferimento.carico) : null;
       p.bozze.set(k, {
-        // Un digitato negativo vuol dire che quel carico è stato registrato nell'altro
-        // modo (assistita contro libera): meglio il campo vuoto di un numero assurdo.
-        carico: digitato == null || digitato < 0 ? '' : peso(digitato),
+        carico: riferimento && riferimento.carico != null ? peso(riferimento.carico) : '',
         rip: ripDiPartenza(p, esercizio, indice, riferimento),
       });
     }
@@ -385,23 +388,6 @@ export async function monta(contenitore, parametri) {
     return ultime.find((s) => s.indice === indice) || ultime[ultime.length - 1];
   }
 
-  /** Dal numero digitato al carico da registrare, nel modo scelto per l'esercizio. */
-  function aReale(p, esercizio, digitato) {
-    // A corpo libero il campo vuoto vuol dire nessuna zavorra, cioè zero.
-    const n = numero(digitato) ?? (modoDi(p, esercizio) === 'corpoLibero' ? 0 : null);
-    if (n == null) return null;
-    // Senza peso corporeo il carico reale non esiste: nessun numero è meglio di uno falso.
-    if (!p.pesoValido && richiedePeso(p, esercizio)) return null;
-    return piani.caricoReale(perCalcolo(p, esercizio), n, p.pesoCorporeo);
-  }
-
-  /** L'inverso, per riempire il campo. */
-  function aDigitato(p, esercizio, reale) {
-    if (reale == null) return null;
-    if (!p.pesoValido && richiedePeso(p, esercizio)) return reale;
-    return piani.caricoDigitato(perCalcolo(p, esercizio), reale, p.pesoCorporeo);
-  }
-
   function confermate(p, esercizio) {
     const out = [];
     for (const s of p.registrate.values()) if (s.esercizioId === esercizio.id) out.push(s);
@@ -409,19 +395,19 @@ export async function monta(contenitore, parametri) {
   }
 
   function completo(p, esercizio) {
-    return confermate(p, esercizio).length >= piani.serieDi(esercizio, settimana);
+    return confermate(p, esercizio).length >= esercizio.serie;
   }
 
   /** Righe da mostrare: le serie di oggi, più quelle già registrate oltre (se si è
       ridotto dopo averle fatte, restano lì e restano salvate). */
   function righeDi(p, esercizio) {
-    const n = piani.serieDi(esercizio, settimana);
+    const n = esercizio.serie;
     const oltre = confermate(p, esercizio).reduce((m, s) => Math.max(m, s.indice + 1), 0);
     return Math.max(n, oltre);
   }
 
   function saltato(esercizio) {
-    return piani.serieDi(esercizio, settimana) === 0;
+    return esercizio.serie === 0;
   }
 
   /** Nessuno ha niente di suo in questa sessione: né serie né righe scritte. */
@@ -437,6 +423,7 @@ export async function monta(contenitore, parametri) {
 
   let btnAvanti = null;
   let btnChiudi = null;
+  let btnCambia = null;
   let zonaVariazione = null;
   let zonaChiusura = null;
 
@@ -449,7 +436,7 @@ export async function monta(contenitore, parametri) {
     chiudiTastierino();
     const originale = delPiano[iEs];
     const e = riferimentoDiOggi() || originale;
-    let serie = piani.serieDi(e, settimana);
+    let serie = e.serie;
 
     const cifra = h('span.titolo-2.mono.ses-var-n', String(serie));
     const cambia = (d) => { serie = Math.max(0, Math.min(10, serie + d)); cifra.textContent = String(serie); tocco(8); };
@@ -460,18 +447,14 @@ export async function monta(contenitore, parametri) {
     const spunta = h('input', { type: 'checkbox' });
 
     const salva = async () => {
-      const rip = e.carico === 'tempo' && /^\d+$/.test(campoRip.value.trim())
-        ? { rip: campoRip.value.trim(), ripMin: Number(campoRip.value), ripMax: Number(campoRip.value), ripSerie: null }
-        : piani.leggiRip(campoRip.value);
+      const rip = piani.leggiRip(campoRip.value);
       if (!rip) { errore.textContent = 'Scrivi le ripetizioni come 10, 8-10 o 12-10-8.'; return; }
       const cambi = { serie, ...rip };
-      const uguale = serie === piani.serieDi(originale, settimana)
+      const uguale = serie === originale.serie
         && rip.rip === piani.testoRip(originale).replace(/[–—]/g, '-');
       await variaOggiTutti(originale, uguale ? null : cambi);
       if (spunta.checked && st.riferimento) {
-        await piani.aggiornaEsercizio(st.riferimento, seduta.id, originale.id, {
-          serie, serieDaSettimana: null, ...rip,
-        });
+        await piani.aggiornaEsercizio(st.riferimento, seduta.id, originale.id, { serie, ...rip });
       }
     };
 
@@ -484,7 +467,7 @@ export async function monta(contenitore, parametri) {
         cifra,
         h('button.btn.btn-s', { type: 'button', onclick: () => cambia(1), 'aria-label': 'Una serie in più' }, '+'),
       ]),
-      h('label.campo', [h('span.occhiello', e.carico === 'tempo' ? 'Secondi' : 'Ripetizioni'), campoRip]),
+      h('label.campo', [h('span.occhiello', 'Ripetizioni'), campoRip]),
       errore,
       h('label.spunta', [spunta, h('span.quadro'), h('span.testo-spunta', 'Anche nella scheda, dalle prossime volte')]),
       h('div.mod-azioni', [
@@ -509,18 +492,129 @@ export async function monta(contenitore, parametri) {
   /** Scrive la variazione di oggi (null la toglie) e ridisegna. */
   async function variaOggi(p, e, cambi, ridisegna = true) {
     const { variazioni } = p.sessione;
-    if (cambi) variazioni[e.id] = { ...(variazioni[e.id] || {}), ...cambi };
-    else delete variazioni[e.id];
-    if (!cambi || !cambi.saltoResto) delete variazioni[e.id]?.saltoResto;
+    const slotId = e.slotId || e.id;
+    if (cambi) variazioni[slotId] = { ...(variazioni[slotId] || {}), ...cambi };
+    else delete variazioni[slotId];
+    if (!cambi || !cambi.saltoResto) delete variazioni[slotId]?.saltoResto;
     p.esercizi = delPiano.map((x) => conVariazioni(p, x));
     // Le ripetizioni di partenza dipendono dal piano: le righe non toccate si rifanno.
+    const fatto = p.esercizi.find((x) => x.slotId === slotId);
     for (const k of [...p.bozze.keys()]) {
-      if (k.startsWith(`${e.id}#`) && !p.toccate.has(k) && !p.registrate.has(k)) p.bozze.delete(k);
+      if (k.startsWith(`${fatto.id}#`) && !p.toccate.has(k) && !p.registrate.has(k)) p.bozze.delete(k);
     }
     p.sessione.seriePreviste = totaleSerie(p);
     await store.salvaSessione(p.sessione);
     tocco();
     if (ridisegna) disegna();
+  }
+
+  /* ---------- cambiare esercizio --------------------------- */
+
+  /** Qualcuno ha già scritto o registrato una serie sull'esercizio a schermo:
+      allora non si cambia più, si salta il resto. */
+  function cominciato(i = iEs) {
+    return P.some((p) => {
+      const e = suo(p, i);
+      return confermate(p, e).length
+        || [...p.toccate].some((k) => k.startsWith(`${e.id}#`) && !p.registrate.has(k));
+    });
+  }
+
+  /**
+   * Il riquadro per mettere un altro esercizio al posto di quello della scheda,
+   * per oggi e per tutti e due. Prima si sceglie il gruppo, poi un esercizio del
+   * catalogo di quel gruppo, oppure se ne crea uno nuovo. Dal 08/10/2026.
+   */
+  function apriCambio() {
+    if (!zonaVariazione) return;
+    if (cominciato()) { disegna(); return; }
+    chiudiTastierino();
+    const slot = delPiano[iEs];
+    const ora = eseguito(slot);
+    // Quelli già in questa seduta non si offrono: lo stesso esercizio due volte
+    // mescolerebbe le serie.
+    const presi = new Set(delPiano.map((x) => eseguito(x).id));
+    let gruppo = null;
+    const zonaScelta = h('div.pila-s');
+
+    const disegnaScelta = () => {
+      if (!gruppo) { metti(zonaScelta); return; }
+      const nome = piani.nomeGruppo(gruppo).toLowerCase();
+      const elenco = catalogo.filter((x) => x.gruppo === gruppo && !presi.has(x.id));
+      const campoNuovo = h('input', {
+        type: 'text', placeholder: 'Nome del nuovo esercizio', 'aria-label': 'Nome del nuovo esercizio',
+      });
+      const errore = h('p.nota.rosso');
+      const crea = async () => {
+        const e = await piani.creaEsercizio({ nome: campoNuovo.value, gruppo, recuperoSec: slot.recuperoSec });
+        if (!e) { errore.textContent = 'Scrivi il nome.'; return; }
+        if (presi.has(e.id)) { errore.textContent = `${e.nome} c’è già in questo allenamento.`; return; }
+        if (!perId.has(e.id)) { catalogo.push(e); perId.set(e.id, e); }
+        await cambia(slot, e.id);
+      };
+      metti(zonaScelta, [
+        elenco.length
+          ? h('ul.lista', elenco.map((x) => h('li', [
+            h('button.ses-scegli', { type: 'button', onclick: () => cambia(slot, x.id) }, x.nome),
+          ])))
+          : h('p.nota', `Nessun altro esercizio di ${nome}: crealo qui sotto.`),
+        h('label.campo', [h('span.occhiello', `Nuovo esercizio di ${nome}`), campoNuovo]),
+        errore,
+        h('button.btn.btn-s', { type: 'button', onclick: crea }, 'Crea e usa'),
+      ]);
+    };
+
+    const bottoni = piani.GRUPPI.map((g) => h('button.scelta-btn', {
+      type: 'button',
+      'aria-pressed': 'false',
+      onclick: () => {
+        gruppo = g.id;
+        bottoni.forEach((b, i) => {
+          const acceso = piani.GRUPPI[i].id === gruppo;
+          b.classList.toggle('scelta-attiva', acceso);
+          b.setAttribute('aria-pressed', acceso ? 'true' : 'false');
+        });
+        tocco(8);
+        disegnaScelta();
+      },
+    }, g.nome));
+    const gruppi = h('div.scelta.ses-gruppi', { role: 'group', 'aria-label': 'Gruppo muscolare' }, bottoni);
+
+    metti(zonaVariazione, h('div.blocco.ses-var', [
+      h('p.occhiello', inDue ? 'Cambia esercizio · oggi, per tutti e due' : 'Cambia esercizio · solo oggi'),
+      h('p.nota', `Serie, ripetizioni e recupero restano quelli della scheda: ${slot.serie} × ${slot.rip}.`),
+      ora.alPostoDi
+        ? h('button.btn.btn-s', { type: 'button', onclick: () => cambia(slot, slot.id) }, `Rimetti ${slot.nome}`)
+        : null,
+      h('p.occhiello', 'Gruppo'),
+      gruppi,
+      zonaScelta,
+      h('button.btn.btn-s', { type: 'button', onclick: () => metti(zonaVariazione) }, 'Annulla'),
+    ].filter(Boolean)));
+  }
+
+  /** Mette `id` al posto dell'esercizio della scheda, per tutti. `slot.id` lo rimette. */
+  async function cambia(slot, id) {
+    if (cominciato()) { disegna(); return; }
+    if (id === slot.id) delete sostituzioni[slot.id];
+    else sostituzioni[slot.id] = id;
+    for (const p of P) {
+      p.sessione.sostituzioni = { ...sostituzioni };
+      // Saltato e poi cambiato: quello nuovo lo si fa.
+      const v = p.sessione.variazioni[slot.id];
+      if (v && v.serie === 0) {
+        delete v.serie;
+        if (!Object.keys(v).length) delete p.sessione.variazioni[slot.id];
+      }
+      p.esercizi = delPiano.map((x) => conVariazioni(p, x));
+      const nuovo = suo(p);
+      if (!p.storico.has(nuovo.id)) await caricaStorico(p, nuovo.id);
+      if (!p.note.has(nuovo.id)) p.note.set(nuovo.id, '');
+      p.sessione.seriePreviste = totaleSerie(p);
+      await store.salvaSessione(p.sessione);
+    }
+    tocco();
+    disegna();
   }
 
   /**
@@ -548,7 +642,6 @@ export async function monta(contenitore, parametri) {
 
   function disegna() {
     const originale = delPiano[iEs];
-    const aTempo = originale.carico === 'tempo';
 
     campi.clear();
     righe.clear();
@@ -559,7 +652,7 @@ export async function monta(contenitore, parametri) {
 
     if (!st.impostato) {
       pezzi.push(h('div.fascia.fascia-avviso', [
-        'Manca la data del primo allenamento: conto come settimana 1. ',
+        'Manca la data del primo allenamento. ',
         h('a', { href: '#/altro', style: 'color:inherit' }, 'Impostala in Altro →'),
       ]));
     }
@@ -579,33 +672,31 @@ export async function monta(contenitore, parametri) {
     const rif = riferimentoDiOggi();
     let riassuntoSerie;
     if (rif) {
-      const n = piani.serieDi(rif, settimana);
-      riassuntoSerie = `${n} serie × ${rif.rip}${rif.variato ? ` · oggi (nel piano ${piani.serieDi(originale, settimana)} × ${originale.rip})` : ''}`;
+      riassuntoSerie = `${rif.serie} serie × ${rif.rip}${rif.variato ? ` · oggi (nel piano ${originale.serie} × ${originale.rip})` : ''}`;
     } else {
-      riassuntoSerie = `Nel piano ${piani.serieDi(originale, settimana)} serie × ${originale.rip}`;
+      riassuntoSerie = `Nel piano ${originale.serie} serie × ${originale.rip}`;
     }
 
+    const ora = eseguito(originale);
     const testa = [
       h('div.ses-testa-es', [
-        h('h2.titolo.cresci', originale.nome),
+        h('h2.titolo.cresci', ora.nome),
         h('div.ses-testa-btn', [
+          btnCambia = h('button.btn.btn-s', { type: 'button', onclick: apriCambio }, 'Cambia'),
           h('button.btn.btn-s', { type: 'button', onclick: apriVariazione }, 'Modifica'),
         ]),
       ]),
+      ora.alPostoDi ? h('p.nota.ses-al-posto', `Oggi al posto di ${ora.alPostoDi}`) : null,
       h('p.nota', riassuntoSerie),
-    ];
-    if (originale.note) testa.push(h('p.nota', originale.note));
-    const compagni = delPiano.filter((x) => x !== originale && x.superserie != null && x.superserie === originale.superserie);
-    if (compagni.length) {
-      testa.push(h('p.nota', `In superserie con ${compagni.map((x) => x.nome).join(' e ')}.`));
-    }
+    ].filter(Boolean);
+    if (ora.note) testa.push(h('p.nota', ora.note));
     pezzi.push(h('div.pila-s', testa));
     zonaVariazione = h('div');
     pezzi.push(zonaVariazione);
 
     /* --- un riquadro a testa --- */
 
-    P.forEach((p) => pezzi.push(riquadroPersona(p, aTempo)));
+    P.forEach((p) => pezzi.push(riquadroPersona(p)));
 
     /* --- navigazione --- */
 
@@ -626,15 +717,15 @@ export async function monta(contenitore, parametri) {
     pezzi.push(zonaChiusura);
 
     metti(schermata, pezzi);
-    P.forEach((p) => { aggiornaReale(p, suo(p)); aggiornaAvanzamento(p, suo(p)); });
+    P.forEach((p) => aggiornaAvanzamento(p, suo(p)));
     window.scrollTo(0, 0);
     aggiornaFondo();
   }
 
   /** Le serie di una persona sull'esercizio a schermo, con il suo storico e la sua nota. */
-  function riquadroPersona(p, aTempo) {
+  function riquadroPersona(p) {
     const e = suo(p);
-    const n = piani.serieDi(e, settimana);
+    const n = e.serie;
     const pezzi = [];
     p.ui = {};
 
@@ -655,16 +746,6 @@ export async function monta(contenitore, parametri) {
       pezzi.push(h('p.nota', `Variante: ${e.varianteFacile}`));
     }
 
-    p.ui.rigaBloccoPeso = null;
-    if (!p.pesoValido && richiedePeso(p, e)) {
-      p.ui.rigaBloccoPeso = h('p.nota.ses-blocco-peso.nascondi', '');
-      pezzi.push(h('div.fascia.fascia-avviso', [
-        `Manca il peso corporeo${inDue ? ` di ${p.nome}` : ''}: senza quello questo esercizio non si può registrare. `,
-        h('a', { href: '#/altro', style: 'color:inherit' }, 'Impostalo in Altro →'),
-        p.ui.rigaBloccoPeso,
-      ]));
-    }
-
     if (saltato(e) && !righeDi(p, e)) {
       pezzi.push(h('div.blocco.blocco-quieto', [
         h('p.nota', 'Oggi questo esercizio non lo fai. Non conta come serie mancanti.'),
@@ -673,32 +754,22 @@ export async function monta(contenitore, parametri) {
       ]));
     }
 
-    /* --- come si fa l'esercizio, quando ci sono due modi --- */
-
-    if (e.caricoAlternativo && righeDi(p, e)) pezzi.push(interruttoreModo(p, e));
-
     /* --- una riga per serie --- */
 
     const elenco = [
-      h(aTempo ? 'div.ses-riga.ses-riga-tempo.ses-intest' : 'div.ses-riga.ses-intest', [
+      h('div.ses-riga.ses-intest', [
         h('span.occhiello', ''),
-        aTempo ? null : h('span.occhiello', piani.etichettaCarico(perCalcolo(p, e))),
-        h('span.occhiello', etichettaRip(e, aTempo)),
+        h('span.occhiello', 'Carico'),
+        h('span.occhiello', etichettaRip(e)),
         h('span'),
-      ].filter(Boolean)),
+      ]),
     ];
-    for (let i = 0; i < righeDi(p, e); i += 1) elenco.push(rigaSerie(p, e, i, aTempo));
+    for (let i = 0; i < righeDi(p, e); i += 1) elenco.push(rigaSerie(p, e, i));
     if (righeDi(p, e)) pezzi.push(h('div.blocco', elenco));
 
-    /* --- storico e carico reale --- */
+    /* --- storico --- */
 
     if (righeDi(p, e)) pezzi.push(h('p.nota.ses-ultima', testoUltimaVolta(p, e)));
-    if (!aTempo && richiedePeso(p, e) && p.pesoValido) {
-      p.ui.reale = h('p.nota.ses-reale', '');
-      pezzi.push(p.ui.reale);
-    } else {
-      p.ui.reale = null;
-    }
 
     /* --- nota dell'esercizio --- */
 
@@ -720,42 +791,11 @@ export async function monta(contenitore, parametri) {
     return h(inDue ? 'section.ses-persona.ses-persona-due' : 'section.ses-persona', { dataset: { persona: p.persona } }, pezzi);
   }
 
-  /** Due stati: il modo predefinito del piano e quello alternativo. Cambia solo come
-      si converte il numero digitato — la serie finisce sempre sullo stesso esercizio. */
-  function interruttoreModo(p, e) {
-    const scelto = modoDi(p, e);
-    const bottoni = [e.carico, e.caricoAlternativo].map((m) => {
-      const b = h('button.ses-modo-btn', {
-        type: 'button',
-        'aria-pressed': m === scelto ? 'true' : 'false',
-        onclick: () => cambiaModo(p, e, m),
-      }, etichettaModo(m));
-      if (m === scelto) b.classList.add('ses-modo-attivo');
-      return b;
-    });
-    return h('div.ses-modo', [
-      h('p.occhiello', 'Come le fai'),
-      h('div.ses-modo-gruppo', bottoni),
-    ]);
-  }
-
-  async function cambiaModo(p, e, modo) {
-    if (modoDi(p, e) === modo) return;
-    p.modi.set(e.id, modo);
-    // Il numero digitato cambia significato: si ricostruisce dalle serie note.
-    for (const k of [...p.bozze.keys()]) {
-      if (k.startsWith(`${e.id}#`)) p.bozze.delete(k);
-    }
-    tocco();
-    disegna();
-    await store.scrivi(`modoCarico:${p.persona}:${e.id}`, modo);
-  }
-
-  function rigaSerie(p, e, i, aTempo) {
+  function rigaSerie(p, e, i) {
     const k = chiave(e.id, i);
     const dati = bozza(p, e, i);
 
-    const campoCarico = aTempo ? null : campo(p, e, i, 'carico', dati.carico);
+    const campoCarico = campo(p, e, i, 'carico', dati.carico);
     const campoRip = campo(p, e, i, 'rip', dati.rip);
     const fatta = h('button.btn.ses-fatta', {
       type: 'button',
@@ -763,13 +803,13 @@ export async function monta(contenitore, parametri) {
     }, p.registrate.has(k) ? 'Aggiorna' : 'Fatta');
 
     const prima = h('span.ses-prima');
-    const riga = h(aTempo ? 'div.ses-riga.ses-riga-tempo' : 'div.ses-riga', [
+    const riga = h('div.ses-riga', [
       h('span.ses-n', String(i + 1)),
       campoCarico,
       campoRip,
       fatta,
       prima,
-    ].filter(Boolean));
+    ]);
 
     righe.set(dom(p, e.id, i), { riga, fatta, prima });
     if (p.registrate.has(k)) riga.classList.add('ses-riga-fatta');
@@ -789,13 +829,12 @@ export async function monta(contenitore, parametri) {
     const rif = stessaSerieUltimaVolta(p, e, i);
     if (!rif) { g.prima.textContent = ''; g.prima.className = 'ses-prima'; return; }
 
-    const aTempo = e.carico === 'tempo';
-    let testo = aTempo || rif.carico == null
-      ? `ultima volta ${rif.ripetizioni ?? '–'} ${aTempo ? 's' : 'rip'}`
+    let testo = rif.carico == null
+      ? `ultima volta ${rif.ripetizioni ?? '–'} rip`
       : `ultima volta ${peso(rif.carico)} kg × ${rif.ripetizioni ?? '–'}`;
     let classe = '';
-    if (!aTempo && rif.carico != null) {
-      const ora = aReale(p, e, bozza(p, e, i).carico);
+    if (rif.carico != null) {
+      const ora = numero(bozza(p, e, i).carico);
       const diff = ora == null ? 0 : +(ora - rif.carico).toFixed(2);
       if (diff > 0) { testo += ` · +${peso(diff)} kg`; classe = ' verde'; }
       else if (diff < 0) { testo += ` · −${peso(-diff)} kg`; classe = ' rosso'; }
@@ -820,16 +859,7 @@ export async function monta(contenitore, parametri) {
     const v = bozza(p, e, i)[tipo];
     b.textContent = v || segnaposto(e, tipo, i);
     b.classList.toggle('ses-campo-vuoto', !v);
-    if (tipo === 'carico') { aggiornaReale(p, e); aggiornaPrima(p, e, i); }
-  }
-
-  /** "carico reale: 58 kg" — solo per assistito e corpo libero, sull'ultima riga toccata. */
-  function aggiornaReale(p, e) {
-    const el = p.ui.reale;
-    if (!el) return;
-    const i = attivo && attivo.p === p && attivo.esercizio === e ? attivo.indice : 0;
-    const reale = aReale(p, e, bozza(p, e, i).carico);
-    el.textContent = reale == null ? '' : `carico reale: ${peso(reale)} kg`;
+    if (tipo === 'carico') aggiornaPrima(p, e, i);
   }
 
   /* ---------- registrazione di una serie ------------------ */
@@ -839,9 +869,6 @@ export async function monta(contenitore, parametri) {
     const dati = bozza(p, e, i);
     const rip = numero(dati.rip);
     if (rip == null || rip <= 0) { tocco(); attiva(p, e, i, 'rip'); return; }
-
-    // Senza peso corporeo qui si registrerebbe un numero che poi esplode: meglio fermarsi.
-    if (!p.pesoValido && richiedePeso(p, e)) { spiegaBloccoPeso(p, e); return; }
 
     const gia = p.registrate.get(k);
     const serie = nuovaSerie(p, e, i, dati, rip);
@@ -876,7 +903,7 @@ export async function monta(contenitore, parametri) {
       sedutaId: sessione.sedutaId,
       esercizioId: e.id,
       indice: i,
-      carico: e.carico === 'tempo' ? null : aReale(p, e, dati.carico),
+      carico: numero(dati.carico),
       ripetizioni: Math.round(rip),
       monitorata: sessione.monitorata,
       note: gia ? (gia.note || '') : '',
@@ -895,7 +922,6 @@ export async function monta(contenitore, parametri) {
       if (!e || !dati) continue;
       const rip = numero(dati.rip);
       if (rip == null || rip <= 0) continue;
-      if (!p.pesoValido && richiedePeso(p, e)) continue;
       const serie = nuovaSerie(p, e, Number(indice), dati, rip);
       p.registrate.set(k, serie);
       nuove.push(serie);
@@ -906,18 +932,6 @@ export async function monta(contenitore, parametri) {
     await store.cancella(p.chiaveBozze);
     for (const e of p.esercizi) await fissaNota(p, e);
     return nuove.length;
-  }
-
-  /** Spiega perché la serie non parte e manda dove si risolve. */
-  function spiegaBloccoPeso(p, e) {
-    tocco();
-    const riga = p.ui.rigaBloccoPeso;
-    if (!riga) return;
-    riga.textContent = modoDi(p, e) === 'assistito'
-      ? 'Non registro: il carico è peso corporeo meno assistenza, e il peso corporeo manca.'
-      : 'Non registro: il carico è peso corporeo più zavorra, e il peso corporeo manca.';
-    riga.classList.remove('nascondi');
-    riga.scrollIntoView({ block: 'center' });
   }
 
   /** La nota dell'esercizio sta sulla prima serie registrata, qualunque sia il suo indice:
@@ -956,8 +970,14 @@ export async function monta(contenitore, parametri) {
     if (p.ui.notaCompleto) p.ui.notaCompleto.classList.toggle('nascondi', !finito);
     const tutti = P.every((x) => completo(x, suo(x)));
     const ultimo = iEs >= delPiano.length - 1;
+    aggiornaCambia();
     if (btnAvanti) btnAvanti.classList.toggle('ses-evidenzia', tutti && !ultimo);
     if (btnChiudi) btnChiudi.classList.toggle('ses-evidenzia', tutti && ultimo);
+  }
+
+  /** Cambia sparisce appena qualcuno scrive una serie sull'esercizio a schermo. */
+  function aggiornaCambia() {
+    if (btnCambia) btnCambia.classList.toggle('nascondi', cominciato());
   }
 
   function vai(i) {
@@ -974,7 +994,7 @@ export async function monta(contenitore, parametri) {
   function mancanti(p) {
     return p.esercizi.reduce((t, e) => {
       const fatte = confermate(p, e).length + [...p.toccate].filter((k) => k.startsWith(`${e.id}#`) && !p.registrate.has(k)).length;
-      return t + Math.max(0, piani.serieDi(e, settimana) - fatte);
+      return t + Math.max(0, e.serie - fatte);
     }, 0);
   }
 
@@ -1060,7 +1080,7 @@ export async function monta(contenitore, parametri) {
       sessione.finita = finita;
       sessione.durataSec = Math.max(0, Math.round((sessione.finita - sessione.iniziata) / 1000));
       sessione.seriePreviste = totaleSerie(p);
-      sessione.serieFatte = p.esercizi.reduce((t, e) => t + Math.min(confermate(p, e).length, piani.serieDi(e, settimana)), 0);
+      sessione.serieFatte = p.esercizi.reduce((t, e) => t + Math.min(confermate(p, e).length, e.serie), 0);
       sessione.ridotto = sessione.serieFatte < sessione.seriePreviste;
       sessione.saltati = quantiSaltati(p);
       await store.salvaSessione(sessione);
@@ -1112,7 +1132,7 @@ export async function monta(contenitore, parametri) {
           ? h('div.cifra-s.mono', `${sessione.serieFatte} serie`)
           : h('div.cifra-s.mono', `${sessione.serieFatte} di ${sessione.seriePreviste}`),
         sessione.saltati && !sessione.ridotto
-          ? h('p.nota', `Nel piano erano ${delPiano.reduce((t, e) => t + piani.serieDi(e, settimana), 0)}: le altre ${inDue ? 'sono saltate' : 'le hai saltate'}.`)
+          ? h('p.nota', `Nel piano erano ${delPiano.reduce((t, e) => t + e.serie, 0)}: le altre ${inDue ? 'sono saltate' : 'le hai saltate'}.`)
           : null,
         sessione.salvateSenzaFatta
           ? h('p.nota', `${sessione.salvateSenzaFatta} ${sessione.salvateSenzaFatta === 1 ? 'serie scritta' : 'serie scritte'} senza premere Fatta: salvate lo stesso.`)
@@ -1123,9 +1143,7 @@ export async function monta(contenitore, parametri) {
       ].filter(Boolean)),
     ];
 
-    const progressi = bloccoProgressione(p);
-    if (progressi) pezzi.push(progressi);
-    else if (!sessione.monitorata) {
+    if (!sessione.monitorata) {
       pezzi.push(h('div.blocco.blocco-quieto', [
         h('p.nota', 'Fase di avvicinamento: i carichi sono annotati, non conteggiati.'),
       ]));
@@ -1148,7 +1166,7 @@ export async function monta(contenitore, parametri) {
       h('ul.lista', p.esercizi.map((e) => {
         const fatte = confermate(p, e);
         return h(fatte.length ? 'li' : 'li.spento', [
-          h('span.cresci', e.nome),
+          h('span.cresci', e.alPostoDi ? `${e.nome} (al posto di ${e.alPostoDi})` : e.nome),
           h('span.nota.mono', riassunto(p, e, fatte)),
         ]);
       })),
@@ -1164,37 +1182,10 @@ export async function monta(contenitore, parametri) {
     return 'Serie registrate';
   }
 
-  /** Doppia progressione: si sale solo dove tutte le serie hanno chiuso al numero alto. */
-  function bloccoProgressione(p) {
-    if (!p.sessione.monitorata || !st.piano?.progressione) return null;
-
-    const righeTesto = [];
-    p.esercizi.forEach((e) => {
-      if (e.carico === 'tempo' || e.ripMax == null) return;
-      const fatte = confermate(p, e);
-      // Un esercizio lasciato a metà non dice niente sul carico: non si sale.
-      if (!fatte.length || saltato(e) || e.saltoResto || !completo(p, e)) return;
-      if (!fatte.every((s) => s.ripetizioni != null && s.ripetizioni >= e.ripMax)) return;
-      if (!fatte.every((s) => s.carico != null && Number.isFinite(s.carico))) return;
-      const base = Math.max(...fatte.map((s) => s.carico));
-      const nuovo = base + (e.incrementoKg ?? 2.5);
-      righeTesto.push(`${e.nome}: la prossima volta sali a ${peso(nuovo)} kg`);
-    });
-
-    if (!righeTesto.length) return null;
-    return h('div.blocco.blocco-pieno', [
-      h('p.occhiello', 'Progressione'),
-      h('ul.lista', righeTesto.map((t) => h('li', h('span.cresci', t)))),
-    ]);
-  }
-
   function riassunto(p, e, fatte) {
     if (saltato(e) && !fatte.length) return 'saltato';
     const coda = e.saltoResto ? ' · resto saltato' : '';
     if (!fatte.length) return 'non svolto';
-    if (e.carico === 'tempo') {
-      return `${fatte.length} serie · ${Math.max(...fatte.map((s) => s.ripetizioni || 0))} s${coda}`;
-    }
     const carichi = fatte.map((s) => s.carico).filter((c) => c != null && Number.isFinite(c));
     if (!carichi.length) return `${fatte.length} serie${coda}`;
     const oggiMax = Math.max(...carichi);
@@ -1278,28 +1269,14 @@ function numero(testo) {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Nome leggibile di un modo di carico, per l'interruttore. */
-const ETICHETTE_MODO = {
-  corpoLibero: 'Libere',
-  assistito: 'Assistite',
-  esterno: 'Con carico',
-  tempo: 'A tempo',
-};
-
-function etichettaModo(modo) {
-  return ETICHETTE_MODO[modo] || modo;
-}
-
 /** Intestazione della colonna: dove la scheda sale a scalare, lo dice. */
-function etichettaRip(esercizio, aTempo) {
-  if (aTempo) return 'Secondi';
+function etichettaRip(esercizio) {
   const scala = esercizio.ripSerie;
   return Array.isArray(scala) && scala.length ? `Rip · ${scala.join('-')}` : 'Ripetizioni';
 }
 
 function segnaposto(esercizio, tipo, indice = 0) {
   if (tipo !== 'rip') return 'kg';
-  if (esercizio.carico === 'tempo') return 'sec';
   // Dove la scheda chiede un numero preciso per questa serie, il campo vuoto
   // mostra quello: si vede cosa fare senza tornare alla scheda.
   const attese = piani.ripAttese(esercizio, indice);
@@ -1354,7 +1331,6 @@ const STILE = `
   border-left: var(--bordo-xl) solid transparent;
   border-bottom: 1px solid var(--linea-2);
 }
-.ses-riga-tempo { grid-template-columns: 24px 1fr auto; }
 .ses-prima { grid-column: 2 / -1; margin-top: -4px; font-size: 13px; color: var(--ink-2); }
 .ses-prima:empty { display: none; }
 .ses-prima.verde { color: var(--verde); font-weight: 700; }
@@ -1387,36 +1363,30 @@ const STILE = `
 .ses-riga-fatta .ses-campo-attivo { background: var(--verde); color: var(--su-colore); }
 .ses-riga-fatta .ses-fatta { border-color: var(--verde); color: var(--verde); }
 
-.ses-modo { display: grid; gap: 6px; }
-.ses-modo-gruppo {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--bordo);
-  background: var(--linea);
-  border: var(--bordo) solid var(--linea);
-}
-.ses-modo-btn {
-  appearance: none;
-  min-height: var(--tap);
-  border: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: inherit;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.ses-modo-attivo { background: var(--ink); color: var(--paper); }
-
-.ses-blocco-peso { color: inherit; font-weight: 700; margin-top: 6px; }
-
 .ses-testa-es { display: flex; align-items: flex-start; gap: 10px; }
 .ses-testa-btn { display: flex; gap: 6px; flex: none; }
 .ses-var { display: grid; gap: 10px; }
 .ses-var-riga { display: flex; align-items: center; gap: 10px; }
 .ses-var-n { min-width: 34px; text-align: center; }
+.ses-gruppi { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
+.ses-var .lista > li { padding: 0; }
+.ses-scegli {
+  appearance: none;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.ses-scegli:active { background: var(--ink); color: var(--paper); }
+.ses-al-posto { font-weight: 700; }
 
-.ses-ultima, .ses-reale { margin-top: -6px; }
+.ses-ultima { margin-top: -6px; }
 
 .ses-persona { display: grid; gap: 10px; }
 .ses-persona-due { padding-top: 12px; border-top: var(--bordo-xl) solid var(--linea); }
